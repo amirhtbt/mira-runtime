@@ -12,6 +12,8 @@ permissions:
 jobs:
   package:
     runs-on: ubuntu-latest
+    env:
+      SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -22,11 +24,11 @@ jobs:
       - name: Verify frontend before packaging
         run: npm run check
       - name: Package shared-host release
-        run: bash scripts/package-shared-host.sh
+        run: GITHUB_SHA="$SOURCE_SHA" bash scripts/package-shared-host.sh
       - name: Upload immutable deploy artifact
         uses: actions/upload-artifact@v4
         with:
-          name: g01-shared-host-${{ github.sha }}
+          name: g01-shared-host-${{ env.SOURCE_SHA }}
           path: deploy-package/*.tar.gz
           if-no-files-found: error
           retention-days: 14
