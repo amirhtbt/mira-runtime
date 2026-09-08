@@ -84,6 +84,15 @@ jobs:
             exit 1
           fi
           grep -F 'set ssl:verify-certificate yes' scripts/deploy-ftps.sh >/dev/null
+      - name: FTPS credentials must use environment password transport
+        run: |
+          grep -F 'export LFTP_PASSWORD="$STAGING_FTPS_PASSWORD"' scripts/deploy-ftps.sh >/dev/null
+          grep -F -- '--env-password' scripts/deploy-ftps.sh >/dev/null
+          grep -F -- '--user' scripts/deploy-ftps.sh >/dev/null
+          if grep -F 'open -u ' scripts/deploy-ftps.sh; then
+            echo 'Do not combine cPanel username/password in lftp -u transport' >&2
+            exit 1
+          fi
       - name: Ephemeral migration bridge safety contract
         run: |
           grep -F "REQUEST_METHOD'] ?? '') !== 'POST'" scripts/deploy-ftps.sh >/dev/null

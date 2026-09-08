@@ -36,22 +36,30 @@ if [[ ${#STAGING_SESSION_PEPPER} -lt 32 ]]; then
   exit 1
 fi
 
+# These values are inserted into lftp's command language. Keep their accepted
+# character set deliberately narrow. The password never enters the command
+# string: lftp reads it from LFTP_PASSWORD via --env-password.
+if [[ ! "$STAGING_FTPS_HOST" =~ ^[A-Za-z0-9.-]+$ ]]; then
+  echo "STAGING_FTPS_HOST contains unsupported characters" >&2
+  exit 1
+fi
+if [[ ! "$STAGING_FTPS_USER" =~ ^[A-Za-z0-9._@+-]+$ ]]; then
+  echo "STAGING_FTPS_USER contains unsupported characters" >&2
+  exit 1
+fi
+
 rm -rf "$backup_dir" "$env_backup" "$runtime_env"
 mkdir -p "$backup_dir"
 
-netrc="$HOME/.netrc"
-umask 077
-cat > "$netrc" <<EOF
-machine $STAGING_FTPS_HOST
-login $STAGING_FTPS_USER
-password $STAGING_FTPS_PASSWORD
-EOF
-chmod 600 "$netrc"
-
-lftp_common="set cmd:fail-exit yes; set net:timeout 20; set net:max-retries 2; set ftp:ssl-force yes; set ftp:ssl-protect-data yes; set ssl:verify-certificate yes; open -p 21 ftp://$STAGING_FTPS_HOST;"
+# lftp documents LFTP_PASSWORD + --env-password as the safe alternative to
+# putting a password on the command line. It also avoids .netrc token parsing
+# for generated cPanel passwords containing punctuation.
+export LFTP_PASSWORD="$STAGING_FTPS_PASSWORD"
+lftp_common="set cmd:fail-exit yes; set net:timeout 20; set net:max-retries 2; set ftp:ssl-force yes; set ftp:ssl-protect-data yes; set ssl:verify-certificate yes; open --user \"$STAGING_FTPS_USER\" --env-password -p 21 ftp://$STAGING_FTPS_HOST;"
 
 cleanup() {
-  rm -f "$netrc" "$runtime_env" "$env_backup"
+  unset LFTP_PASSWORD || true
+  rm -f "$runtime_env" "$env_backup"
   if [[ -n "$migrator_file" ]]; then rm -f "$migrator_file"; fi
 }
 trap cleanup EXIT
