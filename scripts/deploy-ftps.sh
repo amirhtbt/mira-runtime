@@ -121,8 +121,8 @@ if ! upload_runtime_env; then
 fi
 
 # Shared hosting does not provide a deployment shell. Run migrations through a
-# random, token-protected, self-deleting PHP bridge that exists only for this
-# deployment. No persistent migration endpoint is shipped in the application.
+# random, token-protected, POST-only, self-deleting PHP bridge that exists only
+# for this deployment. No persistent migration endpoint is shipped.
 migration_token="$(openssl rand -hex 32)"
 migration_hash="$(printf '%s' "$migration_token" | sha256sum | awk '{print $1}')"
 migrator_name=".tinv-migrate-$(openssl rand -hex 12).php"
@@ -130,12 +130,17 @@ migrator_file="$runner_tmp/$migrator_name"
 cat > "$migrator_file" <<EOF
 <?php
 declare(strict_types=1);
+if ((\$_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+    http_response_code(404);
+    exit;
+}
 \$provided = (string) (\$_SERVER['HTTP_X_TINV_DEPLOY_TOKEN'] ?? '');
 if (!hash_equals('$migration_hash', hash('sha256', \$provided))) {
     http_response_code(404);
     exit;
 }
 @unlink(__FILE__);
+header('Cache-Control: no-store');
 header('Content-Type: text/plain; charset=utf-8');
 require dirname(__DIR__) . '/bin/migrate.php';
 EOF
@@ -150,6 +155,7 @@ fi
 
 migration_url="${STAGING_ORIGIN%/}/$migrator_name"
 if ! curl --fail --silent --show-error --max-time 30 \
+  --request POST \
   -H "X-Tinv-Deploy-Token: $migration_token" \
   "$migration_url" >/tmp/tinv-migrate.log; then
   lftp -c "$lftp_common rm '$remote_migrator'; bye" >/dev/null 2>&1 || true
