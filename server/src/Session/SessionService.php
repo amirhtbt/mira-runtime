@@ -16,13 +16,24 @@ final readonly class SessionService
     ) {}
 
     /** @return array{token:string,token_hash:string,context:SessionContext,absolute_expires_at:int} */
-    public function issue(string $userId, string $businessId, ?int $now = null, string $userAgent = ''): array
-    {
+    public function issue(
+        string $userId,
+        string $businessId,
+        ?int $now = null,
+        string $userAgent = '',
+        ?int $absoluteExpiresAt = null,
+    ): array {
         $now ??= time();
         $token = self::base64Url(random_bytes(32));
         $tokenHash = $this->hashToken($token);
-        $idleExpires = $now + $this->idleTtlSeconds;
-        $absoluteExpires = $now + $this->absoluteTtlSeconds;
+        $defaultAbsoluteExpires = $now + $this->absoluteTtlSeconds;
+        $absoluteExpires = $absoluteExpiresAt === null
+            ? $defaultAbsoluteExpires
+            : min($absoluteExpiresAt, $defaultAbsoluteExpires);
+        if ($absoluteExpires <= $now) {
+            throw new \RuntimeException('session_absolute_expiry_invalid');
+        }
+        $idleExpires = min($now + $this->idleTtlSeconds, $absoluteExpires);
         $userAgentHash = $userAgent === '' ? null : hash('sha256', $userAgent, true);
 
         $stmt = $this->pdo->prepare('INSERT INTO sessions (token_hash, user_id, business_id, created_at, last_seen_at, idle_expires_at, absolute_expires_at, user_agent_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
@@ -72,12 +83,42 @@ final readonly class SessionService
     /** @return array{token:string,context:SessionContext,absolute_expires_at:int}|null */
     public function rotate(string $token, ?int $now = null, string $userAgent = ''): ?array
     {
+        if ($token === '' || strlen($token) > 128) return null;
         $now ??= time();
-        $context = $this->authenticate($token, $now);
-        if (!$context) return null;
-        $this->revoke($token, $now);
-        $new = $this->issue($context->userId, $context->businessId, $now, $userAgent);
-        return ['token' => $new['token'], 'context' => $new['context'], 'absolute_expires_at' => $new['absolute_expires_at']];
+        $hash = $this->hashToken($token);
+        $ownsTransaction = !$this->pdo->inTransaction();
+        if ($ownsTransaction) $this->pdo->beginTransaction();
+
+        try {
+            $stmt = $this->pdo->prepare('SELECT user_id, business_id, UNIX_TIMESTAMP(idle_expires_at) idle_expires, UNIX_TIMESTAMP(absolute_expires_at) absolute_expires, revoked_at FROM sessions WHERE token_hash = ? LIMIT 1 FOR UPDATE');
+            $stmt->execute([$hash]);
+            $row = $stmt->fetch();
+            if (!$row || $row['revoked_at'] !== null) {
+                if ($ownsTransaction) $this->pdo->commit();
+                return null;
+            }
+
+            $absoluteExpires = (int) $row['absolute_expires'];
+            if ($now >= (int) $row['idle_expires'] || $now >= $absoluteExpires) {
+                $this->revokeByHash($hash, $now);
+                if ($ownsTransaction) $this->pdo->commit();
+                return null;
+            }
+
+            $context = new SessionContext((string) $row['user_id'], (string) $row['business_id']);
+            $this->revokeByHash($hash, $now);
+            $new = $this->issue($context->userId, $context->businessId, $now, $userAgent, $absoluteExpires);
+
+            if ($ownsTransaction) $this->pdo->commit();
+            return [
+                'token' => $new['token'],
+                'context' => $new['context'],
+                'absolute_expires_at' => $new['absolute_expires_at'],
+            ];
+        } catch (\Throwable $exception) {
+            if ($ownsTransaction && $this->pdo->inTransaction()) $this->pdo->rollBack();
+            throw $exception;
+        }
     }
 
     public function revoke(string $token, ?int $now = null): void
