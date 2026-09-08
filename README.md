@@ -20,8 +20,18 @@ Create and share a professional, branded pro-forma invoice in under 30 seconds o
 - Architecture must preserve a clean migration path to a future website, standalone web app, paid tiers, teams, payments and broader commerce tooling.
 - The product is for pro-forma invoices / sales documents, not an official tax invoice system in V1.
 
+## Current execution
+
+Start every new implementation session from:
+
+- `docs/CURRENT_EXECUTION_ORDER.md`
+- the current GitHub Gate Issue
+
+Current Gate: **G00 / Issue #1**.
+
 ## Source-of-truth documents
 
+- `docs/CURRENT_EXECUTION_ORDER.md`
 - `docs/PRODUCT_SPEC.md`
 - `docs/ARCHITECTURE.md`
 - `docs/HOSTING_REQUIREMENTS.md`
@@ -30,6 +40,7 @@ Create and share a professional, branded pro-forma invoice in under 30 seconds o
 - `docs/TEST_STRATEGY.md`
 - `docs/ROADMAP_AND_GATES.md`
 - `docs/PILOT_AND_MIGRATION.md`
+- `docs/GITHUB_BOOTSTRAP.md`
 
 ## Delivery rule
 
