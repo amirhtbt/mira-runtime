@@ -8,7 +8,7 @@ Default branch: `main`
 
 **G01 — Telegram Mini App foundation and trusted authentication**
 GitHub Issue: #2
-State: ACTIVE after G00 architecture review PASS.
+State: ACTIVE — implementation merged; Shataban Germany hosting/PHP runtime confirmed; isolated staging deployment + real Telegram device acceptance pending.
 
 G00 / Issue #1 is accepted and must not be reopened unless a regression, new platform constraint or explicit owner decision is documented.
 
@@ -17,8 +17,18 @@ G00 / Issue #1 is accepted and must not be reopened unless a regression, new pla
 - Architecture review: `docs/g00/G00_ARCHITECTURE_REVIEW_2026-09-08.md`
 - Reviewed source main: `61f6f72f3b220153f77563180072152e9f2ddcba`
 - Official Telegram Mini App documentation rechecked on 2026-09-08.
-- Required corrections frozen before implementation: strict `initData` validation/session exchange, replay/freshness policy, 2026 origin hardening, staging/production isolation, Iran-host Bot API independence, stronger immutable snapshot metadata, raster-first V1 upload policy and shared-host-compatible export boundary.
+- Required corrections frozen before implementation: strict `initData` validation/session exchange, replay/freshness policy, 2026 origin hardening, staging/production isolation, Bot API independence, stronger immutable snapshot metadata, raster-first V1 upload policy and shared-host-compatible export boundary.
 - No unresolved critical/high G00 architecture blocker remains after those corrections.
+
+## G01 current evidence
+
+- Foundation/auth implementation merged via PR #14.
+- Session absolute-lifetime/rotation security regression fixed before merge and covered by integration tests.
+- Deployment target corrected to Shataban Host Germany shared hosting; same account currently serves Box4U.
+- cPanel/hosting evidence confirms Apache 2.4.68, MariaDB 10.6.28, 2 GB account RAM, 30 entry processes, 100 processes and approximately 2.14 GB free disk at evidence time.
+- PHP 8.2 is available with `memory_limit=1024M`, `max_execution_time=300`, `post_max_size=512M`, `upload_max_filesize=512M` and required G01 extensions.
+- Existing Box4U PHP/domain settings are explicitly out of scope and must not be changed by G01.
+- Routine GitHub artifact retention is removed from staging deployment. Direct GitHub Actions → isolated cPanel FTPS deployment is the active plan, with ephemeral same-run file backup, HTTPS health check and automatic file rollback on failure.
 
 ## Ordered gates
 
@@ -59,7 +69,7 @@ Before work, read in this order:
 - A gate does not PASS until its automated tests, required manual acceptance and documentation evidence are complete.
 - Critical/high security findings block acceptance unless an explicit owner waiver is recorded.
 - Performance exceptions require an explicit recorded decision.
-- Production changes must be traceable to a commit SHA/deploy artifact.
+- Deployments must be traceable to an exact commit SHA and recorded deployment evidence. A retained artifact is optional, not mandatory, when the workflow rebuilds/tests and deploys that exact SHA directly.
 - Closed/superseded work must not be silently reopened.
 
 ## V1 invariants
@@ -80,4 +90,14 @@ Before work, read in this order:
 
 ## Immediate next action
 
-Execute Issue #2 / G01 on a dedicated branch and PR. Implement only the Telegram Mini App foundation/trusted authentication deliverables and tests defined by Issue #2 and the G00 Source of Truth. Do not implement G02+ early.
+Complete G01 staging provisioning only:
+1. create isolated `invoice-staging.box4u.co` subdomain/application root and assign PHP 8.2 only to it;
+2. create isolated staging DB + DB user;
+3. create a dedicated FTPS account jailed to the Mini App staging application root;
+4. add the four staging deployment secrets to GitHub Actions;
+5. create/move `deploy/staging` to the accepted `main` SHA so GitHub performs the direct deployment;
+6. create remote `server/.env`, apply initial migration, configure staging BotFather Mini App;
+7. execute Android/iOS/Desktop acceptance matrix;
+8. only then PASS/close G01 and advance to G02.
+
+Do not implement G02+ early.
