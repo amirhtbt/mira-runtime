@@ -1,0 +1,13 @@
+{
+  "name": "telegram-invoice/server",
+  "description": "Shared-host-friendly G01 API foundation",
+  "type": "project",
+  "require": {
+    "php": ">=8.2"
+  },
+  "autoload": {
+    "psr-4": {
+      "Tinv\\": "src/"
+    }
+  }
+}
