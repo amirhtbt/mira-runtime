@@ -52,6 +52,15 @@ Test::run('session renewal rotates token and revokes old token', function () use
     Test::equals($result->context->userId, $sessions->authenticate($rotated['token'], $now + 11)?->userId);
 });
 
+Test::run('session renewal never extends original absolute lifetime', function () use ($auth, $sessions, $config, $now): void {
+    $raw = TelegramFixture::user('900000007', $now - 2, $config->telegramBotToken);
+    $result = $auth->authenticateTelegram($raw, $now);
+    $rotated = $sessions->rotate($result->sessionToken, $now + 100, 'integration-test');
+    Test::assert($rotated !== null);
+    Test::equals($result->absoluteExpiresAt, $rotated['absolute_expires_at']);
+    Test::equals(null, $sessions->authenticate($rotated['token'], $now + 600));
+});
+
 Test::run('expired session is rejected', function () use ($auth, $sessions, $config, $now): void {
     $raw = TelegramFixture::user('900000004', $now - 2, $config->telegramBotToken);
     $result = $auth->authenticateTelegram($raw, $now);
