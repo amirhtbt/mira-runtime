@@ -14,6 +14,7 @@
 - date formatting
 - settings merge/defaulting
 - Telegram auth validation helpers
+- strict `initData` query parsing/duplicate rejection
 - template view-model normalization
 
 Money calculations must use integer minor/base units or another deterministic decimal strategy; never binary float arithmetic for financial totals.
@@ -37,6 +38,7 @@ Money calculations must use integer minor/base units or another deterministic de
 - template selector
 - loading/error states
 - RTL mixed-content rendering
+- Telegram adapter fallbacks/capability checks
 
 ### End-to-end tests
 Critical user journeys:
@@ -62,21 +64,37 @@ Snapshot invoice outputs for template fixtures.
 ## 2. Security tests
 
 Mandatory:
-- valid/invalid Telegram initData
-- tampered user id
-- expired initData
-- replay-resistance policy
+- valid Telegram `initData`
+- invalid hash
+- tampered signed field
+- tampered Telegram user JSON / user ID
+- malformed percent-encoding
+- duplicate `hash`
+- duplicate `auth_date`
+- duplicate `user`
+- duplicate `query_id` when present
+- expired `auth_date`
+- unreasonably future `auth_date`
+- replay-resistance/session-mint policy
+- raw `initData` cannot act as a long-lived normal API bearer credential
+- session expiry/rotation/revocation
 - authorization across users/businesses
+- client-supplied `business_id` cannot widen server authorization scope
 - SQL injection attempts
 - stored/reflected XSS in seller/customer/item/note fields
 - malicious SVG/file upload behavior
 - oversized upload
+- decompression-bomb/resource-exhaustion image cases
 - MIME spoofing
 - path traversal
 - CSRF/session policy where applicable
+- cross-origin requests cannot invoke privileged state changes
+- production/staging origin and secret isolation
 - rate limiting on write/export endpoints
 - secrets not present in JS bundle/repository
 - security headers and HTTPS only
+
+Telegram hash comparison must be constant-time. Tests must exercise the strict query parser instead of only testing already-parsed fixtures.
 
 ## 3. Financial correctness tests
 
@@ -93,6 +111,8 @@ Test matrix:
 - formatted/unformatted parse behavior
 
 The engine total is authoritative; templates cannot recalculate independently.
+
+Historical snapshot tests must prove that changing settings, calculation-engine implementation or template defaults cannot alter stored authoritative totals for finalized/exported invoices.
 
 ## 4. Performance budgets
 
@@ -122,6 +142,8 @@ Initial targets for a mid-range phone on typical mobile conditions; refine after
 - typical 20-item PDF export target <= 3 s
 - export failure must never lose invoice data
 
+Performance targets are acceptance budgets, not reasons to weaken correctness/security tests. If production-like shared hosting cannot meet a budget, record measured evidence and an explicit exception or change architecture before acceptance.
+
 ## 5. Reliability
 
 - autosave draft after meaningful edits with debounce
@@ -131,6 +153,7 @@ Initial targets for a mid-range phone on typical mobile conditions; refine after
 - graceful handling of duplicate requests
 - structured server logs with request correlation id
 - no invoice content in error telemetry unless required and explicitly protected
+- Telegram Bot API unavailability must not corrupt or block the authoritative invoice transaction path
 
 ## 6. Compatibility matrix
 
@@ -140,6 +163,16 @@ Manual acceptance on:
 - Telegram Desktop current
 - at least one lower/mid-range Android reference device
 - common screen sizes
+
+G01 additionally verifies:
+- production/staging configured origins
+- light/dark Telegram behavior
+- BackButton behavior
+- safe-area and content-safe-area behavior
+- stable viewport behavior during resize/keyboard interactions
+- haptic adapter fallback
+- same-origin session/cookie behavior on Android/iOS/Desktop
+- app launch from the configured Main Mini App entry point
 
 ## 7. Optimization gate
 
@@ -153,3 +186,4 @@ Before pilot:
 - cache headers
 - PHP opcache verification when host permits
 - slow-query/error logging strategy
+- selected-host network acceptance from Iranian user paths and common VPN/proxy paths
