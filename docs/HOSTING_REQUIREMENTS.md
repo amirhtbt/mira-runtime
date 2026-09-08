@@ -2,11 +2,27 @@
 
 ## Deployment goal
 
-Primary V1 deployment target is the owner's existing **Hetzner shared hosting in Germany**. The application must remain portable to other conventional PHP/MySQL shared hosts and to a VPS/cloud later.
+Primary V1 deployment target is the owner's existing **Shataban Host shared hosting in Germany**. The same hosting account currently serves `box4u.co`.
 
-This supersedes the earlier assumption that production itself would be hosted inside Iran. It does **not** reopen G00 architecture: the selected PHP/MySQL/static-client design remains valid and becomes less constrained by server-side Telegram filtering.
+This supersedes the earlier Hetzner assumption and the older Iran-host assumption. It does **not** reopen G00 architecture: the selected static frontend + PHP/MySQL shared-host design remains valid.
 
 The authoritative invoice path must still remain functional without server-to-Telegram Bot API connectivity.
+
+## Known selected-account resources — 2026-09-08
+
+Owner-provided plan evidence currently shows:
+- Germany location
+- 1 GB base storage + 8 GB purchased extra, approximately 9 GB total account storage
+- 2 GHz dedicated CPU allocation shown on the owner's plan
+- 2 GB dedicated RAM
+- unlimited monthly traffic
+- NVMe storage
+- daily / weekly backups
+
+These account-level resources are adequate for G01 staging and are reasonable for the initial V1 pilot. They are shared with the existing `box4u.co` workload, so resource contention must be measured rather than assumed absent.
+
+Detailed evidence and remaining checks:
+- `docs/g01/G01_SHATABAN_HOSTING_EVIDENCE_2026-09-08.md`
 
 ## Required host capabilities
 
@@ -15,7 +31,7 @@ Mandatory:
 - valid HTTPS certificate
 - PHP 8.2 or newer
 - MySQL 8 / MariaDB equivalent
-- at least 256 MB PHP memory limit; 512 MB preferred
+- at least 256 MB PHP `memory_limit`; 512 MB preferred for later export work
 - cURL
 - mbstring
 - JSON
@@ -27,7 +43,7 @@ Mandatory:
 - daily backup or reliable backup mechanism
 - configurable PHP upload/post limits
 - access to PHP error logs or an equivalent application logging path
-- Apache `mod_rewrite` or equivalent routing for the G01 shared-host artifact
+- Apache `mod_rewrite` / `.htaccess` support or equivalent routing for the G01 shared-host artifact
 
 Preferred:
 - PHP 8.3+
@@ -40,64 +56,60 @@ Preferred:
 - database restore tooling
 - access/error logs
 
-## Hetzner compatibility decision — 2026-09-08
+## Runtime limits still to verify
 
-Official Hetzner documentation currently confirms selectable PHP 8.x versions, MariaDB/MySQL-compatible databases, cron jobs, `mod_rewrite`, daily-backup-oriented hosting features and PHP extensions relevant to this project. Current Webhosting package limits differ by plan.
-
-For the currently advertised S/M/L/XL family:
-- S: 192 MB PHP memory; below this project's current 256 MB minimum.
-- M: 256 MB PHP memory; meets the minimum but does not include interactive SSH.
-- L: 384 MB PHP memory and SSH; recommended practical baseline for this project.
-- XL: 512 MB PHP memory and SSH; ample for V1 and later export stress testing.
-
-The owner's exact existing Hetzner package must be verified before staging deployment. If it is an older Hetzner product rather than the current S/M/L/XL family, use the actual account limits instead of inferring them from current marketing names.
-
-Node.js/Redis support on larger Hetzner plans is not required by V1. Production remains a static frontend + PHP request/response API.
-
-## Capacity starting point
-
-For a pilot, target roughly:
-- 2–5 GB or more available storage
-- enough DB quota for hundreds of thousands of lightweight records
-- >=256 MB PHP per-script memory
-- at least several concurrent PHP processes for pilot traffic
-- cron capability
-- reliable daily backups retained several days
-
-Before production acceptance, record the exact selected account limits for:
-- package/product name
-- PHP version and memory limit
-- concurrent PHP workers/processes
-- max execution time
-- upload/post size
+The hosting-plan screenshot proves account CPU/RAM/storage/location but does not prove PHP/runtime limits. Before staging acceptance, record:
+- PHP version selectable for the Mini App subdomain
+- PHP `memory_limit`
+- concurrent PHP workers/processes if exposed
+- `max_execution_time`
+- `upload_max_filesize`
+- `post_max_size`
 - DB quota/connections
 - cron count/frequency
 - SSH availability
-- backup retention/restore
+- backup retention/restore capability
 - outbound HTTPS behavior
+
+If PHP `memory_limit` is below 256 MB, record it as a G01 hosting blocker until the account configuration/plan is changed or an explicit architecture exception is accepted.
+
+## Co-hosting with Box4U
+
+The Mini App may use the same Shataban hosting account for G01/pilot, but it must remain isolated from the Box4U WordPress application.
+
+Required boundaries:
+- separate Mini App subdomain/origin
+- separate Document Root
+- separate MySQL/MariaDB database and DB user where supported
+- separate application/session secrets
+- separate Telegram bot configuration/token
+- no reuse of WordPress tables or `wp-config.php` secrets
+- no deployment inside the Box4U WordPress directory tree
+
+Physical account isolation is weaker than a separate hosting account. This is acceptable for G01/pilot if application/data boundaries are enforced and account-level resource contention is monitored. G08 must revisit this if Box4U load, security blast radius or export workloads make co-hosting risky.
 
 ## Domain and environment structure
 
 V1 has no public marketing website.
 
-Recommended:
-- `app.<domain>` = production Telegram Mini App frontend + API
-- `staging.<domain>` = staging/test environment
+Recommended logical layout:
+- `app.<chosen-domain>` = production Telegram Mini App frontend + API
+- `staging.<chosen-domain>` = staging/test environment
 
-The root domain can remain unused/reserved until a future website is justified.
+Do not assume the Mini App must use the `box4u.co` domain merely because it shares the same hosting account. The product domain/origin should be chosen independently.
 
-Production and staging are separate security boundaries:
+Production and staging are separate application security boundaries even if they temporarily share the same hosting account:
 - separate databases
 - separate application/session secrets
 - separate Telegram bot token/configuration where practical
-- no production credential in staging CI/runtime
+- no production credential in staging
 - no staging data promoted into production as an authentication source
 
 Telegram's Mini App origin hardening is active in 2026. Frontend + API therefore remain same-origin in V1 and the app must not navigate between staging and production origins while expecting Telegram-native methods to continue working.
 
 ## Iranian-user network policy
 
-Although the server is in Germany, the pilot audience may connect from Iran where Telegram and ordinary HTTPS connectivity can be filtered or routed through VPN/proxy paths.
+German hosting materially reduces the risk of server-side Telegram filtering, but the pilot audience may connect from Iran where Telegram and ordinary HTTPS connectivity can be filtered or routed through VPN/proxy paths.
 
 Architecture rules remain:
 - invoice create/calculate/save/finalize/export never requires a synchronous Bot API call;
@@ -107,11 +119,11 @@ Architecture rules remain:
 
 Production acceptance must still test:
 - Mini App HTTPS reachability from an Iranian network;
-- common full-device VPN/proxy paths used by the pilot audience;
+- representative full-device VPN/proxy paths used by the pilot audience;
 - DNS/TLS consistency;
-- actual outbound Bot API behavior from the selected Hetzner account rather than assuming it.
+- actual outbound Bot API behavior from the selected account rather than assuming it.
 
-A Telegram MTProto proxy and the Mini App WebView's normal HTTPS traffic are separate paths; one must not be assumed to proxy the other.
+A Telegram MTProto proxy and the Mini App WebView's ordinary HTTPS traffic are separate paths; one must not be assumed to proxy the other.
 
 ## Shared-hosting constraints
 
@@ -131,11 +143,10 @@ Use:
 - cron-driven maintenance/background work
 - renderer/export strategy compatible with PHP/shared hosting and/or the client
 
-## G01 Hetzner artifact layout
+## G01 shared-host artifact layout
 
 G01 CI produces an immutable shared-host archive. After extraction, use:
-
-- `server/public/` as the subdomain's **Document Root**
+- `server/public/` as the Mini App subdomain's **Document Root**
 - `server/.env` for runtime secrets/configuration, kept outside the public document root
 - `server/bin/migrate.php` for controlled CLI migrations when SSH is available
 - `server/migrations/` as the source for a controlled phpMyAdmin import when SSH is unavailable
@@ -163,7 +174,7 @@ Never edit production source manually as the normal workflow.
 
 Host must support safe application storage for logos and generated exports where server-side persistence is used.
 
-V1 must not require a server-side browser renderer. G06 must prove its Persian image/PDF export path against the documented performance and visual fixtures on production-like Hetzner hosting.
+V1 must not require a server-side browser renderer. G06 must prove its Persian image/PDF export path against the documented performance and visual fixtures on production-like Shataban hosting.
 
 ## Secrets
 

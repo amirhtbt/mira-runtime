@@ -2,15 +2,18 @@
 
 Gate: G01 / Issue #2
 Branch: `g01/telegram-foundation-auth`
-Status: implementation in review; real Telegram/device acceptance pending.
+Status: implementation merged; real staging/Telegram device acceptance pending.
 
 ## Deployment target decision
 
-Owner decision on 2026-09-08: V1 will run on the owner's existing **Hetzner shared hosting in Germany**, not on an Iran-based production host.
+Owner correction on 2026-09-08: V1 will run on the owner's existing **Shataban Host shared hosting in Germany**, not Hetzner. The same account currently serves `box4u.co`.
 
-This does not change the G00 architecture. The app remains static TypeScript/React + PHP/MySQL and shared-host compatible. It removes the earlier server-location constraint while preserving the rule that authoritative invoice operations never depend on synchronous Telegram Bot API availability.
+This does not change G00 architecture. The app remains static TypeScript/React + PHP/MySQL and shared-host compatible. Known hosting resources (owner evidence): Germany location, approximately 9 GB total account storage after an 8 GB add-on, 2 GHz dedicated CPU allocation shown by the plan, 2 GB dedicated RAM, unlimited traffic, NVMe and daily/weekly backups.
 
-Exact Hetzner package limits still need to be read from the owner's hosting account before staging acceptance. Current official Hetzner packages show that M meets the project's 256 MB PHP-memory minimum, while L/XL add SSH and more memory; L is the recommended practical baseline if the existing account can use it.
+Exact PHP/runtime limits still need control-panel verification before staging acceptance. See:
+- `docs/g01/G01_SHATABAN_HOSTING_EVIDENCE_2026-09-08.md`
+
+Because Box4U shares the hosting account, the Mini App must use a separate subdomain/document root, separate DB/DB user where supported and separate application/Telegram secrets. No WordPress tables or `wp-config.php` credentials may be reused.
 
 ## Implemented foundation
 
@@ -100,13 +103,13 @@ Telegram numeric ID is stored only as an identity mapping; domain ownership is k
 
 ## Shared-host artifact
 
-G01 now includes:
+G01 includes:
 - Apache same-origin routing in `server/public/.htaccess`;
 - security headers suitable for Telegram Web + mobile WebViews;
 - `scripts/package-shared-host.sh`;
 - `.github/workflows/g01-package.yml` to produce a commit-addressed artifact.
 
-Artifact layout keeps `server/src`, migrations and runtime `.env` outside the public document root. Hetzner subdomain Document Root should point to `server/public/` after extraction.
+Artifact layout keeps `server/src`, migrations and runtime `.env` outside the public document root. The Shataban Mini App subdomain Document Root must point to `server/public/` after extraction.
 
 ## CI
 
@@ -117,20 +120,21 @@ Artifact layout keeps `server/src`, migrations and runtime `.env` outside the pu
 
 `.github/workflows/g01-package.yml` rebuilds and checks the client, then creates the shared-host deployment archive.
 
-Direct dependency versions are pinned in `package.json`. A dependency lockfile remains a production-hardening task if it cannot be generated in the current development environment; it must be resolved no later than G08 before pilot production acceptance.
+The merged G01 implementation commit produced passing CI and a commit-addressed shared-host artifact. Direct dependency versions are pinned in `package.json`; dependency lockfile hardening remains due no later than G08 if not already added.
 
 ## Human actions required for final G01 acceptance
 
-Only these require the owner/operator:
+Only these still require the owner/operator:
 
-1. confirm the exact Hetzner hosting package/account limits;
+1. verify Shataban control-panel runtime facts: PHP 8.2+, PHP memory >=256 MB, DB creation, HTTPS/subdomain Document Root, rewrite support and logs;
 2. choose/confirm production and staging HTTPS origins;
-3. configure production and staging/test Mini App entries in BotFather;
-4. install server-only secrets on Hetzner;
-5. deploy the G01 artifact to staging and run the migration;
-6. run Android/iOS/Desktop Telegram launch matrix in `BOTFATHER_AND_DEPLOYMENT_CHECKLIST.md`.
+3. create a separate staging DB/DB user and Mini App subdomain outside the Box4U WordPress document root;
+4. configure staging/test Mini App in BotFather;
+5. install server-only secrets on Shataban;
+6. deploy the G01 artifact to staging and run the migration;
+7. run Android/iOS/Desktop Telegram launch matrix in `BOTFATHER_AND_DEPLOYMENT_CHECKLIST.md`.
 
-Do not paste bot tokens into GitHub or screenshots.
+Do not paste bot tokens, DB passwords or application secrets into GitHub or screenshots.
 
 ## Gate decision
 
