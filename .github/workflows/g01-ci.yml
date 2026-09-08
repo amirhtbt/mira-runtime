@@ -71,6 +71,20 @@ jobs:
       - name: DB-backed auth/session integration tests
         run: php tests/php/run-integration.php
 
+  deployment-safety:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shell syntax check
+        run: bash -n scripts/prepare-shared-host-release.sh scripts/deploy-ftps.sh scripts/package-shared-host.sh
+      - name: FTPS certificate verification may not be disabled
+        run: |
+          if grep -E 'ssl:verify-certificate[[:space:]]+(no|false|0)' scripts/deploy-ftps.sh; then
+            echo 'Unsafe FTPS certificate-verification override detected' >&2
+            exit 1
+          fi
+          grep -F 'set ssl:verify-certificate yes' scripts/deploy-ftps.sh >/dev/null
+
   secrets:
     runs-on: ubuntu-latest
     steps:
