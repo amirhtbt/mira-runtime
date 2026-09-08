@@ -1,6 +1,6 @@
 # Telegram Invoice Mini App — Source of Truth
 
-Status: Product Definition / G00
+Status: G00 PASS / G01 Active
 Date: 2026-09-08
 
 A Telegram-only Mini App for creating visually polished, brandable pro-forma invoices / sales quotations in seconds, aimed at small Iranian sellers and online shops that do not use accounting software.
@@ -27,7 +27,10 @@ Start every new implementation session from:
 - `docs/CURRENT_EXECUTION_ORDER.md`
 - the current GitHub Gate Issue
 
-Current Gate: **G00 / Issue #1**.
+Current Gate: **G01 / Issue #2**.
+
+G00 architecture acceptance evidence:
+- `docs/g00/G00_ARCHITECTURE_REVIEW_2026-09-08.md`
 
 ## Source-of-truth documents
 
