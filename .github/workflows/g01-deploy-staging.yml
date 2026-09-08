@@ -1,0 +1,90 @@
+name: G01 Direct cPanel Staging Deploy
+
+on:
+  push:
+    branches: ['deploy/staging']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: telegram-invoice-staging-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: telegram_invoice_test
+          MYSQL_USER: tinv
+          MYSQL_PASSWORD: tinv_test_password
+          MYSQL_ROOT_PASSWORD: root_test_password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot_test_password"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      APP_ENV: test
+      APP_ORIGIN: https://app.example.test
+      TELEGRAM_BOT_TOKEN: unit-test-token-not-a-real-secret
+      SESSION_PEPPER: unit-test-session-pepper-0123456789abcdef
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: telegram_invoice_test
+      DB_USER: tinv
+      DB_PASSWORD: tinv_test_password
+      AUTH_MAX_AGE_SECONDS: 300
+      AUTH_FUTURE_SKEW_SECONDS: 30
+      SESSION_IDLE_TTL_SECONDS: 604800
+      SESSION_ABSOLUTE_TTL_SECONDS: 2592000
+      SESSION_TOUCH_INTERVAL_SECONDS: 300
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package.json
+
+      - name: Install pinned frontend dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Frontend typecheck, tests, build and bundle secret scan
+        run: npm run check
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, pdo_mysql
+
+      - name: Backend syntax and security tests
+        run: |
+          find server tests/php -name '*.php' -print0 | xargs -0 -n1 php -l
+          php tests/php/run-unit.php
+
+      - name: DB-backed auth/session integration tests
+        run: |
+          php server/bin/migrate.php
+          php tests/php/run-integration.php
+
+      - name: Prepare shared-host release without artifact retention
+        run: bash scripts/prepare-shared-host-release.sh
+
+      - name: Install FTPS client
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq lftp
+
+      - name: Direct deploy to isolated cPanel staging root
+        env:
+          STAGING_FTPS_HOST: ${{ secrets.STAGING_FTPS_HOST }}
+          STAGING_FTPS_USER: ${{ secrets.STAGING_FTPS_USER }}
+          STAGING_FTPS_PASSWORD: ${{ secrets.STAGING_FTPS_PASSWORD }}
+          STAGING_ORIGIN: ${{ secrets.STAGING_ORIGIN }}
+        run: bash scripts/deploy-ftps.sh
