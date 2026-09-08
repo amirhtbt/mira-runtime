@@ -84,6 +84,10 @@ jobs:
             exit 1
           fi
           grep -F 'set ssl:verify-certificate yes' scripts/deploy-ftps.sh >/dev/null
+      - name: Staging origin must remain noindex
+        run: |
+          grep -F 'invoice-staging\.box4u\.co' server/public/.htaccess >/dev/null
+          grep -F 'X-Robots-Tag "noindex, nofollow, noarchive"' server/public/.htaccess >/dev/null
 
   secrets:
     runs-on: ubuntu-latest
