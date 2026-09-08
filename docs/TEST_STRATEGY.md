@@ -1,0 +1,155 @@
+# Test & Optimization Strategy
+
+## 1. Test layers
+
+### Unit tests
+- money arithmetic
+- rounding
+- line totals
+- discounts
+- fixed/percent adjustments
+- shipping/service adjustments
+- Rial/Toman conversion/display policy
+- numbering
+- date formatting
+- settings merge/defaulting
+- Telegram auth validation helpers
+- template view-model normalization
+
+Money calculations must use integer minor/base units or another deterministic decimal strategy; never binary float arithmetic for financial totals.
+
+### API integration tests
+- auth/session
+- CRUD invoice
+- ownership isolation / IDOR protection
+- business scoping
+- customer/product optional persistence
+- template metadata
+- export requests
+- upload validation
+- migration compatibility
+
+### Client component tests
+- item editor
+- quantity controls
+- totals
+- settings progressive disclosure
+- template selector
+- loading/error states
+- RTL mixed-content rendering
+
+### End-to-end tests
+Critical user journeys:
+1. new user -> first invoice -> export
+2. returning user -> duplicate -> change -> export
+3. settings -> card details -> invoice output
+4. 20-item invoice
+5. expired/invalid Telegram session
+6. failed network -> retry/draft recovery
+7. template switch preserves totals
+8. PDF/image export output
+
+### Visual regression
+For every template + key viewport:
+- Android narrow
+- Android normal
+- iPhone-class viewport
+- Telegram Desktop
+- light/dark app chrome where applicable
+
+Snapshot invoice outputs for template fixtures.
+
+## 2. Security tests
+
+Mandatory:
+- valid/invalid Telegram initData
+- tampered user id
+- expired initData
+- replay-resistance policy
+- authorization across users/businesses
+- SQL injection attempts
+- stored/reflected XSS in seller/customer/item/note fields
+- malicious SVG/file upload behavior
+- oversized upload
+- MIME spoofing
+- path traversal
+- CSRF/session policy where applicable
+- rate limiting on write/export endpoints
+- secrets not present in JS bundle/repository
+- security headers and HTTPS only
+
+## 3. Financial correctness tests
+
+Treat totals as correctness-critical.
+
+Test matrix:
+- qty 0/1/large
+- negative values rejected where not explicitly supported
+- percent boundaries
+- very large totals
+- combined line + invoice discounts
+- rounding order
+- Rial/Toman presentation
+- formatted/unformatted parse behavior
+
+The engine total is authoritative; templates cannot recalculate independently.
+
+## 4. Performance budgets
+
+Initial targets for a mid-range phone on typical mobile conditions; refine after field telemetry.
+
+### Client
+- initial compressed JS target <= 300 KB where practical
+- avoid loading template preview assets until needed
+- first useful UI target <= 2.5 s p75
+- primary interaction response <= 100 ms typical
+- INP target < 200 ms p75 where measurable
+- invoice preview recalculation/render <= 100 ms for 20 items
+- <= 250 ms for 100-item stress case
+
+### Animation
+- target 60 fps on supported mid-range devices
+- no long task > 50 ms during primary data entry where practical
+- downgrade expensive motion on low-performance devices
+- reduced-motion mode must be fully functional
+
+### API
+- normal CRUD API target < 500 ms p95 from domestic target network, excluding external dependencies
+- avoid synchronous Telegram Bot API dependency in invoice creation
+
+### Export
+- typical 20-item image export target <= 2 s
+- typical 20-item PDF export target <= 3 s
+- export failure must never lose invoice data
+
+## 5. Reliability
+
+- autosave draft after meaningful edits with debounce
+- idempotency for export/finalize operations where needed
+- database backups
+- migration rollback plan
+- graceful handling of duplicate requests
+- structured server logs with request correlation id
+- no invoice content in error telemetry unless required and explicitly protected
+
+## 6. Compatibility matrix
+
+Manual acceptance on:
+- Telegram Android current
+- Telegram iOS current
+- Telegram Desktop current
+- at least one lower/mid-range Android reference device
+- common screen sizes
+
+## 7. Optimization gate
+
+Before pilot:
+- performance profile on production-like shared host
+- bundle audit
+- database query audit
+- index review
+- image/font compression
+- template lazy loading
+- cache headers
+- PHP opcache verification when host permits
+- slow-query/error logging strategy
