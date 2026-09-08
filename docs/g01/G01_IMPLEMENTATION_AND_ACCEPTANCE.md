@@ -1,19 +1,32 @@
 # G01 Implementation & Acceptance
 
 Gate: G01 / Issue #2
-Branch: `g01/telegram-foundation-auth`
-Status: implementation merged; real staging/Telegram device acceptance pending.
+Status: implementation merged; hosting runtime confirmed; direct staging deployment setup + real Telegram device acceptance pending.
 
 ## Deployment target decision
 
 Owner correction on 2026-09-08: V1 will run on the owner's existing **Shataban Host shared hosting in Germany**, not Hetzner. The same account currently serves `box4u.co`.
 
-This does not change G00 architecture. The app remains static TypeScript/React + PHP/MySQL and shared-host compatible. Known hosting resources (owner evidence): Germany location, approximately 9 GB total account storage after an 8 GB add-on, 2 GHz dedicated CPU allocation shown by the plan, 2 GB dedicated RAM, unlimited traffic, NVMe and daily/weekly backups.
+This does not change G00 architecture. The app remains static TypeScript/React + PHP/MySQL and shared-host compatible.
 
-Exact PHP/runtime limits still need control-panel verification before staging acceptance. See:
-- `docs/g01/G01_SHATABAN_HOSTING_EVIDENCE_2026-09-08.md`
+Confirmed hosting/runtime evidence now includes:
+- Germany location;
+- approximately 9 GB account storage with ~2.14 GB free at evidence time;
+- 2 GHz dedicated CPU allocation shown by the plan;
+- 2 GB dedicated RAM;
+- 30 entry-process / 100 process limits;
+- Apache 2.4.68;
+- MariaDB 10.6.28;
+- PHP 8.2 available;
+- PHP `memory_limit=1024M`;
+- `max_execution_time=300`;
+- `post_max_size=512M`;
+- `upload_max_filesize=512M`;
+- required G01 PHP extensions available.
 
-Because Box4U shares the hosting account, the Mini App must use a separate subdomain/document root, separate DB/DB user where supported and separate application/Telegram secrets. No WordPress tables or `wp-config.php` credentials may be reused.
+See `docs/g01/G01_SHATABAN_HOSTING_EVIDENCE_2026-09-08.md`.
+
+Existing Box4U PHP/domain settings are not changed by this project. The Mini App uses a new isolated subdomain with its own PHP 8.2 assignment, document root, database and secrets.
 
 ## Implemented foundation
 
@@ -101,15 +114,30 @@ Telegram numeric ID is stored only as an identity mapping; domain ownership is k
 - typecheck/build
 - client bundle secret scan
 
-## Shared-host artifact
+## Direct staging deployment — artifact-free normal path
 
-G01 includes:
-- Apache same-origin routing in `server/public/.htaccess`;
-- security headers suitable for Telegram Web + mobile WebViews;
-- `scripts/package-shared-host.sh`;
-- `.github/workflows/g01-package.yml` to produce a commit-addressed artifact.
+Owner requested GitHub-to-cPanel deployment with routine GitHub artifact use minimized.
 
-Artifact layout keeps `server/src`, migrations and runtime `.env` outside the public document root. The Shataban Mini App subdomain Document Root must point to `server/public/` after extraction.
+G01 therefore uses:
+- `.github/workflows/g01-ci.yml` for normal CI/security coverage;
+- `.github/workflows/g01-deploy-staging.yml` for direct staging deployment;
+- `scripts/prepare-shared-host-release.sh` to assemble the release in ephemeral runner storage;
+- `scripts/deploy-ftps.sh` to deploy directly to cPanel via encrypted explicit FTPS;
+- a dedicated `deploy/staging` branch/ref as the exact commit pointer that is allowed to deploy to staging.
+
+Routine deployment does **not** upload a GitHub Actions artifact. The old routine artifact-upload workflow is removed.
+
+Deployment safety rules:
+- FTPS credentials must belong to a cPanel FTP account jailed to the dedicated Mini App staging application root;
+- the FTP account must not expose the cPanel account home, Box4U WordPress root or unrelated sites;
+- `server/.env` is excluded from normal mirror deletion/upload so runtime secrets remain server-side;
+- the workflow downloads the prior staging file tree into ephemeral runner storage before upload;
+- failed upload or failed `/api/v1/health` smoke check triggers same-run file rollback;
+- TLS certificate verification remains enabled; do not disable FTPS certificate verification to make deployment pass.
+
+This rollback is sufficient for G01 staging. Production-grade atomic deployment/database rollback remains G08 scope.
+
+`deploy/staging` is not created/moved until the isolated cPanel staging root and GitHub Secrets are configured. After that, moving the ref to an accepted `main` SHA triggers deployment and makes the deployed commit explicit.
 
 ## CI
 
@@ -118,24 +146,23 @@ Artifact layout keeps `server/src`, migrations and runtime `.env` outside the pu
 - PHP 8.2 syntax/unit/integration tests with MySQL 8.4 service
 - repository secret scan
 
-`.github/workflows/g01-package.yml` rebuilds and checks the client, then creates the shared-host deployment archive.
-
-The merged G01 implementation commit produced passing CI and a commit-addressed shared-host artifact. Direct dependency versions are pinned in `package.json`; dependency lockfile hardening remains due no later than G08 if not already added.
+The staging deploy workflow repeats the relevant build/security/integration checks before any network deployment. Direct dependency versions are pinned in `package.json`; dependency lockfile hardening remains due no later than G08 if not already added.
 
 ## Human actions required for final G01 acceptance
 
-Only these still require the owner/operator:
+Only the actions that require control-panel/credential/device ownership remain human-operated:
 
-1. verify Shataban control-panel runtime facts: PHP 8.2+, PHP memory >=256 MB, DB creation, HTTPS/subdomain Document Root, rewrite support and logs;
-2. choose/confirm production and staging HTTPS origins;
-3. create a separate staging DB/DB user and Mini App subdomain outside the Box4U WordPress document root;
-4. configure staging/test Mini App in BotFather;
-5. install server-only secrets on Shataban;
-6. deploy the G01 artifact to staging and run the migration;
-7. run Android/iOS/Desktop Telegram launch matrix in `BOTFATHER_AND_DEPLOYMENT_CHECKLIST.md`.
+1. create the dedicated staging subdomain with document root ending in `server/public`;
+2. assign PHP 8.2 only to that staging subdomain;
+3. create the dedicated staging DB and DB user;
+4. create a dedicated FTP account jailed to the Mini App staging application root;
+5. add the four deployment values to GitHub repository Secrets: `STAGING_FTPS_HOST`, `STAGING_FTPS_USER`, `STAGING_FTPS_PASSWORD`, `STAGING_ORIGIN` — never paste their secret values into chat/issues;
+6. create/configure the staging/test Telegram bot and keep its token only in server-side runtime configuration;
+7. run the initial DB migration/runtime `.env` setup;
+8. complete Android/iOS/Desktop Telegram launch matrix in `BOTFATHER_AND_DEPLOYMENT_CHECKLIST.md`.
 
-Do not paste bot tokens, DB passwords or application secrets into GitHub or screenshots.
+Once the four deploy Secrets and isolated staging root exist, GitHub deployment/ref movement can be performed through the repository workflow without the owner manually uploading release files.
 
 ## Gate decision
 
-Do not close G01 solely from CI. Issue #2 manual acceptance items (Android/iOS/Desktop, light/dark, safe-area/viewport) must PASS on the real configured Mini App first.
+Do not close G01 solely from CI or hosting compatibility. Issue #2 manual acceptance items (real Telegram Android/iOS/Desktop, light/dark and safe-area/viewport) must PASS on the configured staging Mini App first.
