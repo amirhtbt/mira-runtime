@@ -2,7 +2,7 @@ name: G01 Shared Host Package
 
 on:
   push:
-    branches: ['g01/**']
+    branches: [main, 'g01/**']
   pull_request:
     branches: [main]
 
