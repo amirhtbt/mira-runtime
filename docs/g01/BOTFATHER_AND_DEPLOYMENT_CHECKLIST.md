@@ -4,17 +4,22 @@ This is the human-action checklist for G01. Do not put tokens, DB passwords or a
 
 ## 0. Confirm the existing Shataban account runtime
 
-Known owner evidence:
+Confirmed owner evidence:
 - Germany location
-- approximately 9 GB total account storage after 8 GB extra storage
-- 2 GHz dedicated CPU allocation shown by the owner's plan
-- 2 GB dedicated RAM
-- unlimited monthly traffic
-- NVMe storage
-- daily / weekly backups
+- package `CP-01`
+- ~9 GB storage quota; 6.86 GB used / ~2.14 GB free at evidence time
+- 2 GHz dedicated CPU allocation shown by plan
+- 2 GB account RAM
+- entry-process limit 30
+- process limit 100
+- MariaDB 10.6.28 with 2.16 GB DB quota
+- Apache 2.4.68 on Linux x86_64
+- unlimited subdomains
+- addon domains unavailable (`0 / 0`)
+- NVMe, unlimited traffic, daily/weekly backups
 - `box4u.co` already runs on the same hosting account
 
-Before deployment, confirm from the hosting control panel:
+Still confirm before deployment:
 - PHP 8.2+ selectable for the Mini App subdomain
 - PHP `memory_limit` >= 256 MB
 - PDO MySQL, mbstring, OpenSSL, fileinfo and cURL enabled
@@ -25,6 +30,7 @@ Before deployment, confirm from the hosting control panel:
 - HTTPS certificate active for the staging subdomain
 - PHP error logs accessible
 - SSH availability (optional for G01)
+- PHP `max_execution_time`, `upload_max_filesize`, `post_max_size`
 
 ## 1. Isolation from Box4U
 
@@ -38,16 +44,16 @@ Required:
 - dedicated Telegram bot token/configuration
 - no reuse of WordPress tables or `wp-config.php` secrets
 
+Because addon domains are unavailable on this package, **G01 staging uses a subdomain of an already-hosted domain**. This is a staging constraint, not a product-identity decision. Do not bind future paid/web identity or internal user IDs to the Box4U domain.
+
 ## 2. Environment split
 
 ### Production
-- HTTPS origin: `https://app.<chosen-domain>`
-- production DB
-- production application/session secret
-- production Telegram bot token
+- production origin remains a future deployment choice after G01/pilot acceptance
+- production DB, secrets and Telegram bot are separate from staging
 
 ### Staging
-- HTTPS origin: `https://staging.<chosen-domain>`
+- dedicated HTTPS subdomain on the current Shataban account
 - separate staging DB
 - separate application/session secret
 - preferably separate staging/test bot and token
@@ -68,11 +74,7 @@ The public directory contains only compiled frontend assets, `index.php` API fro
 
 ## 4. Runtime configuration
 
-Create the real file:
-
-`server/.env`
-
-from `.env.example`, setting server-side values only:
+Create `server/.env` from `.env.example`, setting server-side values only:
 - `APP_ENV`
 - `APP_ORIGIN`
 - `TELEGRAM_BOT_TOKEN`
@@ -99,8 +101,6 @@ If SSH is unavailable:
 4. Keep the bot token only in `server/.env` on staging.
 5. Record only the bot username and configured origin as evidence; never the token.
 
-Only after G01 acceptance should production bot/origin promotion occur.
-
 ## 7. Deployment smoke checks
 
 Before device acceptance:
@@ -109,10 +109,10 @@ Before device acceptance:
 3. Invalid/unsigned `POST /api/v1/auth/telegram` cannot authenticate.
 4. No token/secret appears in page source, JS assets or API responses.
 5. Session cookie is `HttpOnly` and `Secure`.
-6. Staging credentials cannot authenticate against production data.
-7. Reloading a valid session works without treating raw `initData` as a long-lived API token.
-8. Session renewal does not extend the original absolute session lifetime.
-9. Box4U remains healthy after staging deployment and there is no shared-path/DB collision.
+6. Reloading a valid session works without treating raw `initData` as a long-lived API token.
+7. Session renewal does not extend the original absolute session lifetime.
+8. Box4U remains healthy after staging deployment and there is no shared-path/DB collision.
+9. Disk use remains safely below account quota after staging deploy.
 
 ## 8. Manual Telegram acceptance matrix
 
@@ -129,6 +129,6 @@ Before device acceptance:
 | Back button foundation works | ☐ | ☐ | ☐ |
 | Haptic fallback causes no error | ☐ | ☐ | ☐ |
 
-Also test at least once from an Iranian user network or a representative full-device VPN/proxy path used by the target audience. German hosting reduces server-side filtering risk but does not eliminate client-network filtering.
+Also test at least once from an Iranian user network or a representative full-device VPN/proxy path used by the target audience.
 
 G01 cannot PASS until the required real-device checks are recorded.
