@@ -84,6 +84,17 @@ jobs:
             exit 1
           fi
           grep -F 'set ssl:verify-certificate yes' scripts/deploy-ftps.sh >/dev/null
+      - name: Ephemeral migration bridge safety contract
+        run: |
+          grep -F "REQUEST_METHOD'] ?? '') !== 'POST'" scripts/deploy-ftps.sh >/dev/null
+          grep -F "HTTP_X_TINV_DEPLOY_TOKEN" scripts/deploy-ftps.sh >/dev/null
+          grep -F "hash_equals" scripts/deploy-ftps.sh >/dev/null
+          grep -F "@unlink(__FILE__)" scripts/deploy-ftps.sh >/dev/null
+          grep -F "Cache-Control: no-store" scripts/deploy-ftps.sh >/dev/null
+          if find server/public -maxdepth 1 -type f -name '*migrat*.php' | grep -q .; then
+            echo 'Persistent public migration endpoint detected' >&2
+            exit 1
+          fi
       - name: Staging origin must remain noindex
         run: |
           grep -F 'invoice-staging\.box4u\.co' server/public/.htaccess >/dev/null
