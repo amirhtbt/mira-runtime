@@ -1,0 +1,67 @@
+import { describe, expect, it, vi } from 'vitest';
+import { TelegramAdapter } from './adapter';
+import type { TelegramWebApp } from './types';
+
+function mockApp(): TelegramWebApp {
+  const back = {
+    show: vi.fn(function () { return back; }),
+    hide: vi.fn(function () { return back; }),
+    onClick: vi.fn(function () { return back; }),
+    offClick: vi.fn(function () { return back; })
+  };
+
+  return {
+    initData: 'signed-data',
+    version: '9.6',
+    platform: 'android',
+    colorScheme: 'dark',
+    viewportHeight: 700,
+    viewportStableHeight: 680,
+    safeAreaInset: { top: 10, bottom: 20, left: 0, right: 0 },
+    contentSafeAreaInset: { top: 42, bottom: 20, left: 0, right: 0 },
+    BackButton: back,
+    HapticFeedback: {
+      impactOccurred: vi.fn(),
+      notificationOccurred: vi.fn(),
+      selectionChanged: vi.fn()
+    },
+    ready: vi.fn(),
+    expand: vi.fn(),
+    isVersionAtLeast: vi.fn(() => true),
+    onEvent: vi.fn(),
+    offEvent: vi.fn(),
+    openLink: vi.fn(),
+    openTelegramLink: vi.fn()
+  };
+}
+
+describe('TelegramAdapter', () => {
+  it('exposes a safe fallback outside Telegram', () => {
+    const adapter = new TelegramAdapter(undefined);
+    expect(adapter.isAvailable()).toBe(false);
+    expect(adapter.getInitData()).toBe('');
+    expect(adapter.snapshot().platform).toBe('browser');
+  });
+
+  it('reads only raw initData for authentication bootstrap', () => {
+    const app = mockApp();
+    const adapter = new TelegramAdapter(app);
+    expect(adapter.getInitData()).toBe('signed-data');
+    expect(adapter.snapshot().colorScheme).toBe('dark');
+  });
+
+  it('cleans up Telegram back-button handlers', () => {
+    const app = mockApp();
+    const adapter = new TelegramAdapter(app);
+    const first = vi.fn();
+    const second = vi.fn();
+
+    adapter.setBackHandler(first);
+    adapter.setBackHandler(second);
+    adapter.setBackHandler(null);
+
+    expect(app.BackButton?.onClick).toHaveBeenCalledTimes(2);
+    expect(app.BackButton?.offClick).toHaveBeenCalledTimes(2);
+    expect(app.BackButton?.hide).toHaveBeenCalledTimes(1);
+  });
+});
