@@ -21,13 +21,11 @@ env_backup="$runner_tmp/tinv-staging-env-backup"
 runtime_env="$runner_tmp/tinv-staging.env"
 migration_log="$runner_tmp/tinv-migrate.log"
 migrator_file=""
-runtime_remote="server/public/.tinv-runtime"
-# The FTP account accepts writes in DocumentRoot but rejects direct `put` into
-# the hidden runtime subdirectory. Apache denies this config path explicitly.
+runtime_remote="server/public/tinv-runtime"
 runtime_env_remote="server/public/tinv-runtime.env"
 legacy_env_remote="server/.env"
 
-if [[ ! -d "$release_dir/server/public/.tinv-runtime" ]]; then
+if [[ ! -d "$release_dir/server/public/tinv-runtime" ]]; then
   echo "Release directory is incomplete: $release_dir" >&2
   exit 1
 fi
@@ -144,7 +142,7 @@ if (!hash_equals('$migration_hash', hash('sha256', \$provided))) {
 header('Cache-Control: no-store');
 header('Content-Type: text/plain; charset=utf-8');
 try {
-    \$runtimeRoot = __DIR__ . '/.tinv-runtime';
+    \$runtimeRoot = __DIR__ . '/tinv-runtime';
     \$migrationPath = \$runtimeRoot . '/bin/migrate.php';
     if (!is_file(\$migrationPath) || !is_readable(\$migrationPath)) {
         http_response_code(500);
@@ -258,9 +256,6 @@ if [[ "$ready" != "1" ]]; then
   exit 1
 fi
 
-# The contained runtime is now proven healthy. Remove the legacy environment
-# copy left by earlier source-tree deployments so only the protected runtime
-# config remains active on staging.
 lftp -c "$lftp_common rm '$legacy_env_remote'; bye" >/dev/null 2>&1 || true
 lftp -c "$lftp_common rm -r release; bye" >/dev/null 2>&1 || true
 lftp -c "$lftp_common rm -r tinv-staging-rollback; bye" >/dev/null 2>&1 || true
