@@ -75,12 +75,23 @@ Test::run('env file loader works without putenv dependency', function (): void {
     }
 
     try {
-        unset($_ENV[$key]);
+        unset($_ENV[$key], $_SERVER[$key]);
         file_put_contents($path, $key . "=loaded-from-file\n");
         Env::loadFileIfPresent($path);
         Test::equals('loaded-from-file', Env::required($key));
     } finally {
-        unset($_ENV[$key]);
+        unset($_ENV[$key], $_SERVER[$key]);
         @unlink($path);
+    }
+});
+
+Test::run('server environment is readable without relying on getenv', function (): void {
+    $key = 'TINV_SERVER_ENV_' . bin2hex(random_bytes(8));
+    try {
+        $_SERVER[$key] = 'loaded-from-server';
+        unset($_ENV[$key]);
+        Test::equals('loaded-from-server', Env::required($key));
+    } finally {
+        unset($_SERVER[$key], $_ENV[$key]);
     }
 });
