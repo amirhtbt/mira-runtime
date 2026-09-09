@@ -114,6 +114,13 @@ jobs:
             echo 'Raw exception-message diagnostics are forbidden in deployment logs' >&2
             exit 1
           fi
+      - name: Shared-host env loader must not require putenv
+        run: |
+          if grep -nE '^[[:space:]]*putenv[[:space:]]*\(' server/src/Support/Env.php; then
+            echo 'Shared-host runtime must not depend on putenv()' >&2
+            exit 1
+          fi
+          grep -F '$_ENV[$key] = $value;' server/src/Support/Env.php >/dev/null
       - name: Staging origin must remain noindex
         run: |
           grep -F 'invoice-staging\.box4u\.co' server/public/.htaccess >/dev/null
