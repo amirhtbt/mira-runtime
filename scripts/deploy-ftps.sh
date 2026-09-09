@@ -100,6 +100,35 @@ deploy_files() {
   lftp -c "$lftp_common mirror --reverse --delete --verbose --parallel=2 --exclude-glob '$legacy_env_remote' --exclude-glob '$runtime_env_remote' --exclude-glob .ftpquota '$release_dir' ./; bye"
 }
 
+# Live cPanel evidence shows files written with an explicit FTP PUT are visible
+# to the PHP handler immediately, while files created only through lftp mirror
+# can remain invisible to PHP even though FTP directory listings show them.
+# Keep mirror for full-tree sync/delete semantics, then explicitly publish every
+# webroot file through PUT so the exact bytes PHP serves are on the proven path.
+publish_public_files() {
+  local public_dir="$release_dir/server/public"
+  local commands=""
+  local local_file rel remote remote_dir
+
+  while IFS= read -r -d '' local_file; do
+    rel="${local_file#"$public_dir"/}"
+    if [[ "$rel" == *"'"* || "$rel" == *$'\n'* || "$rel" == *$'\r'* ]]; then
+      echo "Unsupported character in public release path" >&2
+      return 1
+    fi
+    remote="server/public/$rel"
+    remote_dir="${remote%/*}"
+    commands+="mkdir -p '$remote_dir'; put '$local_file' -o '$remote'; "
+  done < <(find "$public_dir" -type f -print0 | sort -z)
+
+  if [[ -z "$commands" ]]; then
+    echo "No public release files found for direct publication" >&2
+    return 1
+  fi
+
+  lftp -c "$lftp_common $commands bye"
+}
+
 upload_runtime_env() {
   lftp -c "$lftp_common put '$runtime_env' -o '$runtime_env_remote'; chmod 600 '$runtime_env_remote'; bye"
 }
@@ -120,6 +149,12 @@ rollback() {
 
 echo "Deploying commit-addressed release directly to cPanel staging..."
 if ! deploy_files; then
+  rollback
+  exit 1
+fi
+
+if ! publish_public_files; then
+  echo "Direct webroot publication failed; rolling back." >&2
   rollback
   exit 1
 fi
