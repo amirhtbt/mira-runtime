@@ -96,7 +96,7 @@ jobs:
       - name: cPanel webroot publication must use explicit PUT
         run: |
           grep -F 'publish_public_files()' scripts/deploy-ftps.sh >/dev/null
-          grep -F 'commands+="mkdir -p' scripts/deploy-ftps.sh >/dev/null
+          grep -F 'commands+="mkdir -pf' scripts/deploy-ftps.sh >/dev/null
           grep -F 'if ! publish_public_files; then' scripts/deploy-ftps.sh >/dev/null
           grep -F 'Direct webroot publication failed; rolling back.' scripts/deploy-ftps.sh >/dev/null
       - name: Ephemeral migration bridge safety contract
