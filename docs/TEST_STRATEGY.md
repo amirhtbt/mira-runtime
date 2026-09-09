@@ -164,6 +164,8 @@ Manual acceptance on:
 - at least one lower/mid-range Android reference device
 - common screen sizes
 
+Recorded exception for the current device inventory: iOS real-device acceptance is deferred, not passed, to G08/pre-pilot and must complete before G09. G02's iPhone-class simulated viewport is visual regression coverage only.
+
 G01 additionally verifies:
 - production/staging configured origins
 - light/dark Telegram behavior

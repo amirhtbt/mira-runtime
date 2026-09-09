@@ -97,12 +97,17 @@ The workflow always treats remote `./` as the isolated Mini App staging root. Th
 
 ### GitHub repository Secrets required
 
-Add these four values in GitHub → repository Settings → Secrets and variables → Actions → Repository secrets:
+The operational deploy workflow uses these repository Actions secret names:
 
 - `STAGING_FTPS_HOST`
 - `STAGING_FTPS_USER`
 - `STAGING_FTPS_PASSWORD`
 - `STAGING_ORIGIN`
+- `STAGING_TELEGRAM_BOT_TOKEN`
+- `STAGING_SESSION_PEPPER`
+- `STAGING_DB_NAME`
+- `STAGING_DB_USER`
+- `STAGING_DB_PASSWORD`
 
 For the proposed staging URL, `STAGING_ORIGIN` is:
 
@@ -163,17 +168,17 @@ Before device acceptance:
 
 | Check | Android | iOS | Desktop |
 |---|---|---|---|
-| Main Mini App launches | ☐ | ☐ | ☐ |
-| Secure auth succeeds | ☐ | ☐ | ☐ |
-| Relaunch reuses valid app session | ☐ | ☐ | ☐ |
-| Light theme | ☐ | ☐ | ☐ |
-| Dark theme | ☐ | ☐ | ☐ |
-| Safe area respected | ☐ | ☐ | ☐ |
-| Content safe area respected | ☐ | ☐ | ☐ |
-| Viewport/keyboard does not break shell | ☐ | ☐ | ☐ |
-| Back button foundation works | ☐ | ☐ | ☐ |
-| Haptic fallback causes no error | ☐ | ☐ | ☐ |
+| Main Mini App launches | PASS | DEFERRED to G08 | PASS |
+| Secure auth succeeds | PASS | DEFERRED to G08 | PASS |
+| Relaunch reuses valid app session | PASS | DEFERRED to G08 | PASS |
+| Light theme | PASS | DEFERRED to G08 | PASS |
+| Dark theme | PASS | DEFERRED to G08 | PASS |
+| Safe area respected | PASS | DEFERRED to G08 | PASS |
+| Content safe area respected | PASS | DEFERRED to G08 | PASS |
+| Viewport/keyboard does not break shell | PASS | DEFERRED to G08 | PASS |
+| Back button foundation works | PASS | DEFERRED to G08 | PASS |
+| Haptic fallback causes no error | PASS | DEFERRED to G08 | PASS |
 
 Also test at least once from an Iranian user network or a representative full-device VPN/proxy path used by the target audience.
 
-G01 cannot PASS until the required real-device checks are recorded.
+G01 passed under the recorded owner scope decision. iOS is explicitly deferred, not passed, and remains mandatory in G08 before G09 pilot.

@@ -1,0 +1,49 @@
+// @vitest-environment jsdom
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { AppShell, StatusView, type HomeData } from './App';
+import { TelegramAdapter, type TelegramRuntimeSnapshot } from './telegram/adapter';
+
+const runtime: TelegramRuntimeSnapshot = { available: true, platform: 'android', version: '9.6', colorScheme: 'light', viewportHeight: 720, viewportStableHeight: 700, safeArea: { top: 20, right: 0, bottom: 12, left: 0 }, contentSafeArea: { top: 28, right: 0, bottom: 16, left: 0 } };
+
+function adapter() {
+  const telegram = new TelegramAdapter({
+    initData: 'signed', platform: 'android', version: '9.6', colorScheme: 'light', viewportHeight: 720, viewportStableHeight: 700,
+    ready: vi.fn(), expand: vi.fn(), onEvent: vi.fn(), offEvent: vi.fn()
+  });
+  vi.spyOn(telegram, 'haptic'); vi.spyOn(telegram, 'setBackHandler');
+  return telegram;
+}
+
+describe('G02 app shell', () => {
+  it('offers the real empty home and keyboard-accessible navigation', () => {
+    render(<AppShell telegram={adapter()} runtime={runtime} />);
+    expect(screen.getByRole('heading', { name: 'اولین پیش‌فاکتورتان را بسازید' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /فاکتورها/ }));
+    expect(screen.getByRole('heading', { name: 'فاکتورها' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /تنظیمات/ }));
+    expect(screen.getByRole('heading', { name: 'تنظیمات' })).toBeTruthy();
+  });
+
+  it('isolates mixed invoice identifiers and amounts in returning-user data', () => {
+    const data: HomeData = { settingsComplete: true, businessName: 'فروشگاه میرا', recentInvoices: [{ id: 'INV-A12-۱۴۰۵', customer: 'شرکت Box4U', amount: '۱۲٬۴۵۰٬۰۰۰ تومان', date: '۱۸ شهریور ۱۴۰۵', status: 'draft' }] };
+    const { container } = render(<AppShell telegram={adapter()} runtime={{ ...runtime, colorScheme: 'dark' }} data={data} />);
+    expect(screen.getByText('INV-A12-۱۴۰۵').getAttribute('dir')).toBe('ltr');
+    expect(screen.getByText('۱۲٬۴۵۰٬۰۰۰ تومان').tagName).toBe('BDI');
+    expect(container.querySelector('[data-theme="dark"]')).toBeTruthy();
+  });
+
+  it('turns the central CTA into a back-button-aware create intent', () => {
+    const telegram = adapter(); render(<AppShell telegram={telegram} runtime={runtime} />);
+    fireEvent.click(screen.getAllByRole('button', { name: 'ساخت پیش‌فاکتور' })[0]);
+    expect(screen.getByRole('heading', { name: 'پیش‌فاکتور جدید' })).toBeTruthy();
+    expect(telegram.haptic).toHaveBeenCalledWith('light');
+    expect(telegram.setBackHandler).toHaveBeenCalledWith(expect.any(Function));
+  });
+
+  it('renders designed offline and retry states', () => {
+    const retry = vi.fn(); render(<StatusView state="offline" onRetry={retry} />);
+    fireEvent.click(screen.getByRole('button', { name: /تلاش دوباره/ }));
+    expect(retry).toHaveBeenCalledOnce();
+  });
+});

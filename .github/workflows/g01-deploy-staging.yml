@@ -1,4 +1,4 @@
-name: G01 Direct cPanel Staging Deploy
+name: Direct cPanel Staging Deploy
 
 on:
   push:
@@ -52,10 +52,10 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: package.json
+          cache-dependency-path: package-lock.json
 
       - name: Install pinned frontend dependencies
-        run: npm install --ignore-scripts --no-audit --no-fund
+        run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Frontend typecheck, tests, build and bundle secret scan
         run: npm run check

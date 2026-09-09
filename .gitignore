@@ -8,3 +8,5 @@ server/vendor/
 .phpunit.cache/
 .DS_Store
 *.log
+*.tsbuildinfo
+test-results/

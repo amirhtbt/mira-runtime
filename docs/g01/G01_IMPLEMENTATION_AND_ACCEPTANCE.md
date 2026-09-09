@@ -1,7 +1,7 @@
 # G01 Implementation & Acceptance
 
 Gate: G01 / Issue #2
-Status: implementation merged; hosting runtime confirmed; direct staging deployment setup + real Telegram device acceptance pending.
+Status: PASS / CLOSED on 2026-09-09; iOS real-device acceptance explicitly deferred (not passed) to G08/pre-pilot.
 
 ## Deployment target decision
 
@@ -148,21 +148,14 @@ This rollback is sufficient for G01 staging. Production-grade atomic deployment/
 
 The staging deploy workflow repeats the relevant build/security/integration checks before any network deployment. Direct dependency versions are pinned in `package.json`; dependency lockfile hardening remains due no later than G08 if not already added.
 
-## Human actions required for final G01 acceptance
+## Final human acceptance
 
-Only the actions that require control-panel/credential/device ownership remain human-operated:
+Provisioning, runtime configuration, migration, HTTPS, noindex and exact-SHA deployment are operational. Telegram Desktop and Android acceptance passed for launch/relaunch, secure session, light/dark and viewport/safe-area behavior. Windows Desktop additionally passed with Telegram proxy on and system VPN off.
 
-1. create the dedicated staging subdomain with document root ending in `server/public`;
-2. assign PHP 8.2 only to that staging subdomain;
-3. create the dedicated staging DB and DB user;
-4. create a dedicated FTP account jailed to the Mini App staging application root;
-5. add the four deployment values to GitHub repository Secrets: `STAGING_FTPS_HOST`, `STAGING_FTPS_USER`, `STAGING_FTPS_PASSWORD`, `STAGING_ORIGIN` — never paste their secret values into chat/issues;
-6. create/configure the staging/test Telegram bot and keep its token only in server-side runtime configuration;
-7. run the initial DB migration/runtime `.env` setup;
-8. complete Android/iOS/Desktop Telegram launch matrix in `BOTFATHER_AND_DEPLOYMENT_CHECKLIST.md`.
+The Android native composer displaced the Persian menu label in an English/LTR client. PR #39 fixed the Bot API configuration with U+200E boundaries while preserving exactly `ساخت فاکتور`; merge `33874d5e16f3f16f350057fe37fd2a87a36f71d9`, CI `34387636512` PASS, configuration run `34387636470` PASS, and final Android visual confirmation PASS.
 
-Once the four deploy Secrets and isolated staging root exist, GitHub deployment/ref movement can be performed through the repository workflow without the owner manually uploading release files.
+iOS is **DEFERRED, NOT PASSED** because no real device is available. The owner moved this check to G08 before G09 pilot. Simulated iPhone coverage cannot satisfy it.
 
 ## Gate decision
 
-Do not close G01 solely from CI or hosting compatibility. Issue #2 manual acceptance items (real Telegram Android/iOS/Desktop, light/dark and safe-area/viewport) must PASS on the configured staging Mini App first.
+Issue #2 is PASS / CLOSED with no unresolved critical/high security finding. G02 / Issue #3 is active.

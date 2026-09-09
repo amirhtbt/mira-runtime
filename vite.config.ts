@@ -10,7 +10,8 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    globals: true
+    globals: true,
+    exclude: ['tests/visual/**', 'node_modules/**', 'dist/**']
   },
   server: {
     proxy: {

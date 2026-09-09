@@ -182,11 +182,16 @@ This direct FTPS rollback model is accepted for **G01 staging only**. Production
 
 ## GitHub deployment secrets
 
-Only deployment credentials belong in GitHub Actions Secrets:
+The operational staging workflow uses these repository Actions secrets (names only; values never belong in source or logs):
 - `STAGING_FTPS_HOST`
 - `STAGING_FTPS_USER`
 - `STAGING_FTPS_PASSWORD`
 - `STAGING_ORIGIN`
+- `STAGING_TELEGRAM_BOT_TOKEN`
+- `STAGING_SESSION_PEPPER`
+- `STAGING_DB_NAME`
+- `STAGING_DB_USER`
+- `STAGING_DB_PASSWORD`
 
 Application runtime secrets stay in remote `server/.env` and are not part of the deployed source tree.
 
