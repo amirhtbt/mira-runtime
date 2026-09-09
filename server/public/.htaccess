@@ -3,6 +3,10 @@ DirectoryIndex index.html
 
 RewriteEngine On
 
+# The contained PHP runtime is executable only through internal PHP includes.
+# Never serve its files directly over HTTP.
+RewriteRule ^\.tinv-runtime(?:/|$) - [F,L]
+
 # Keep the V1 API same-origin and route every API path through PHP.
 RewriteRule ^api(?:/|$) index.php [L,QSA]
 
