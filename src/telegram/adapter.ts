@@ -34,6 +34,7 @@ function startLocalSdk(): boolean {
     if (sdkStarted) return true;
     init();
     themeParams.mount();
+    themeParams.bindCssVars();
     miniApp.mount();
     backButton.mount.ifAvailable();
     viewportMount = viewport.mount.isAvailable() ? viewport.mount() : undefined;
