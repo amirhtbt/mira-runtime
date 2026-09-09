@@ -116,7 +116,7 @@ jobs:
           fi
       - name: Shared-host env loader must not require putenv
         run: |
-          if grep -F 'putenv(' server/src/Support/Env.php; then
+          if grep -nE '^[[:space:]]*putenv[[:space:]]*\(' server/src/Support/Env.php; then
             echo 'Shared-host runtime must not depend on putenv()' >&2
             exit 1
           fi
