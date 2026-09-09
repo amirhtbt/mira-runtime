@@ -25,37 +25,39 @@ Secondary later:
 ### First session
 1. Launch Mini App from Telegram.
 2. Telegram identity is verified server-side.
-3. User sees one primary action: `ساخت پیش‌فاکتور`.
+3. User sees one primary action: `سند جدید`; the next surface offers `پیش‌فاکتور` (default) or `فاکتور فروش`.
 4. Minimal onboarding can collect only what is required to make the output useful.
-5. Create invoice through a short guided flow.
+5. Create the selected document through one shared short guided flow.
 6. See animated live preview.
 7. Choose a visual template.
 8. Export/share.
 9. Only after value is delivered, encourage completing store profile/settings.
 
 ### Repeat session
-- Recent invoices
-- `+ پیش‌فاکتور جدید`
-- Duplicate/reuse recent invoice
+- Recent pro-formas and invoices
+- `+ سند جدید`
+- Convert an eligible pro-forma to an invoice with one action
+- Duplicate/reuse a recent document
 - Saved products/customers optional
 
 ## 4. Primary create flow
 
 Keep the normal path minimal:
 
-1. Customer name (optional)
-2. Invoice items
+1. Document type: pro-forma by default; invoice is one tap away
+2. Customer name (optional)
+3. Document items
    - item title
    - quantity
    - unit price
-3. Optional chips
+4. Optional chips
    - discount
    - shipping
    - notes
-4. Live total
-5. Template selection
-6. Final preview
-7. Export/share
+5. Live total
+6. Template selection
+7. Final preview
+8. Export/share
 
 Target time:
 - first invoice: < 30 s for a simple invoice
@@ -83,10 +85,11 @@ Advanced fields must be configurable globally and overridable per invoice when u
 - signature image (future-capable)
 - stamp image (future-capable)
 
-### Invoice identity
-- document label: پیش‌فاکتور / فاکتور فروش / quotation-style custom labels
-- sequence prefix
-- invoice number
+### Document identity
+- explicit document type: پیش‌فاکتور / فاکتور فروش
+- custom display label that never changes the underlying type
+- separate sequence prefix/sequence per type
+- document number
 - auto/manual numbering
 - issue date
 - validity/expiry date
@@ -136,7 +139,7 @@ Each can be enabled/disabled in settings:
 - density: compact / comfortable
 - font-size profile within supported safe limits
 
-## 6. Invoice lifecycle
+## 6. Sales-document lifecycle
 
 V1 states:
 - draft
@@ -144,22 +147,27 @@ V1 states:
 - shared/exported
 - archived
 
-Optional lightweight manual status:
-- unpaid
-- paid
-- cancelled
+Type-specific rules:
+- a pro-forma can be converted once to a new linked invoice without mutating the source;
+- invoice payment state is derived from confirmed payments: unpaid / partial / paid / overpaid;
+- cancelled is an auditable document state, not a hard delete.
 
 No accounting ledger is implied.
 
-## 7. Invoice history
+The complete domain contract is in `docs/SALES_DOCUMENT_DOMAIN.md`.
 
-- list recent invoices
-- search by invoice number/customer/item text
-- filter by date/status
+## 7. Document and customer history
+
+- list recent pro-formas and invoices together
+- search by document number/customer/item text
+- filter by date/type/lifecycle/payment status
 - open/preview
 - duplicate
-- edit draft or clone finalized invoice
+- convert an eligible pro-forma to an invoice
+- record payment amount/date/method against invoices
+- edit draft or clone finalized document
 - archive
+- show all linked documents and invoice balances for one saved customer
 
 ## 8. Saved data
 
@@ -168,6 +176,7 @@ V1 can support lightweight saved:
 - products/services
 
 Both must be optional; invoice creation cannot require master-data setup.
+Stable customer history is available when the document is linked to a saved customer; finalized display snapshots remain immutable after customer edits.
 
 ## 9. Export/share
 
@@ -193,6 +202,7 @@ Track:
 - export/share rate
 - D1/D7/D30 retention
 - invoices per active seller
+- eligible pro-forma-to-invoice conversion rate by issue-date cohort and observation window
 - template usage
 - advanced-settings usage
 - crash/error rate

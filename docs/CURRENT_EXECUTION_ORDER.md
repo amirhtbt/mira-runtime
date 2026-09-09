@@ -83,6 +83,9 @@ Before work, read in this order:
 - V1 is free during product validation; no paid wall in the pilot.
 - Persian-first, RTL-first, mobile-first.
 - Visual experience is animated/premium but normal invoice creation stays simple.
+- Pro-forma and invoice are explicit types of one shared sales-document aggregate; the UI exposes one `سند جدید` action and one lightweight type choice.
+- Conversion creates a linked invoice without mutating the pro-forma; payments affect invoices only; customer history groups both types by stable customer ID.
+- Conversion analytics is derived from explicit links/events using an eligible issued-pro-forma cohort, never inferred from matching content.
 - Advanced invoice parameters live in Settings/progressive disclosure.
 - Templates are created/versioned by the product team through Git/CI; no end-user template builder in V1.
 - Invoice calculations are authoritative domain logic, never template logic.
@@ -95,4 +98,4 @@ Before work, read in this order:
 
 ## Immediate next action
 
-Complete G02 only: merge the tested RTL shell, deploy the exact accepted SHA to staging, then obtain the scoped Android visual acceptance. Real iOS testing remains mandatory in G08 before G09; simulated iPhone viewport coverage is not iOS acceptance.
+Complete G02 only: align the shell with the dual-document vocabulary, fix the observed fixed-navigation overlap, deploy the exact accepted SHA to staging, then obtain the scoped Android visual acceptance. The G03/G04/G07/G09 implementation responsibilities are defined in `docs/SALES_DOCUMENT_DOMAIN.md`; do not pull their backend scope into G02. Real iOS testing remains mandatory in G08 before G09; simulated iPhone viewport coverage is not iOS acceptance.

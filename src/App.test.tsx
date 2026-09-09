@@ -18,7 +18,7 @@ function adapter() {
 describe('G02 app shell', () => {
   it('offers the real empty home and keyboard-accessible navigation', () => {
     render(<AppShell telegram={adapter()} runtime={runtime} />);
-    expect(screen.getByRole('heading', { name: 'اولین پیش‌فاکتورتان را بسازید' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'اولین سند فروشتان را بسازید' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /فاکتورها/ }));
     expect(screen.getByRole('heading', { name: 'فاکتورها' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /تنظیمات/ }));
@@ -35,8 +35,10 @@ describe('G02 app shell', () => {
 
   it('turns the central CTA into a back-button-aware create intent', () => {
     const telegram = adapter(); render(<AppShell telegram={telegram} runtime={runtime} />);
-    fireEvent.click(screen.getAllByRole('button', { name: 'ساخت پیش‌فاکتور' })[0]);
-    expect(screen.getByRole('heading', { name: 'پیش‌فاکتور جدید' })).toBeTruthy();
+    fireEvent.click(screen.getAllByRole('button', { name: 'ساخت سند جدید' })[0]);
+    expect(screen.getByRole('heading', { name: 'چه سندی می‌سازید؟' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /پیشنهاد قیمت/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /ثبت مبلغ پرداخت‌شده/ })).toBeTruthy();
     expect(telegram.haptic).toHaveBeenCalledWith('light');
     expect(telegram.setBackHandler).toHaveBeenCalledWith(expect.any(Function));
   });

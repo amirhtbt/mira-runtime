@@ -37,7 +37,7 @@ Deliver:
 - design tokens
 - RTL typography
 - bottom navigation
-- new-invoice primary CTA
+- one `new document` primary CTA with a simple pro-forma/invoice choice
 - loading/empty/error states
 - motion/haptic system
 - reduced-motion fallback
@@ -54,6 +54,7 @@ Deliver:
 - business profile
 - payment details
 - invoice identity settings
+- separate pro-forma/invoice labels and numbering defaults
 - monetary settings
 - item-column visibility
 - notes/terms/footer
@@ -66,7 +67,7 @@ Tests:
 - mixed RTL/LTR
 - missing optional fields
 
-## G04 — Invoice Engine
+## G04 — Sales Document Engine
 
 Deliver:
 - item editor
@@ -76,12 +77,17 @@ Deliver:
 - draft autosave
 - live preview data model
 - invoice numbering
+- explicit pro-forma/invoice type with separate sequences
+- one-way idempotent pro-forma-to-invoice conversion link
+- invoice payments and derived unpaid/partial/paid/overpaid balance status
 
 Tests:
 - full financial correctness matrix
 - 1/20/100 item tests
 - autosave/recovery
 - concurrency/idempotency where relevant
+- conversion snapshot/link integrity and payment-allocation correctness
+- pro-formas excluded from billed/paid/outstanding totals
 
 ## G05 — Template Engine + First 5 Templates
 
@@ -118,17 +124,19 @@ Tests:
 ## G07 — History / Reuse
 
 Deliver:
-- invoice list
+- combined pro-forma/invoice list with type/status filters
 - search/filter
 - open/preview
 - duplicate
 - archive
 - optional lightweight customer/product save
+- per-customer document timeline, conversion links and invoice balance summary
 
 Tests:
 - ownership isolation
 - pagination/query performance
 - duplicate preserves totals/settings correctly
+- customer history isolation and correct financial aggregation
 
 ## G08 — Production Hardening
 
@@ -157,6 +165,7 @@ Track at minimum:
 - export/share completion
 - D1/D7/D30 retention
 - invoices per active user
+- cohort-based pro-forma-to-invoice conversion rate from explicit links/events
 - error rate
 - template usage
 - feedback score

@@ -11,6 +11,9 @@
 - shipping/service adjustments
 - Rial/Toman conversion/display policy
 - numbering
+- separate pro-forma/invoice numbering sequences
+- conversion eligibility and idempotency
+- payment allocation and derived balance status
 - date formatting
 - settings merge/defaulting
 - Telegram auth validation helpers
@@ -21,10 +24,13 @@ Money calculations must use integer minor/base units or another deterministic de
 
 ### API integration tests
 - auth/session
-- CRUD invoice
+- CRUD sales document for both explicit types
+- pro-forma-to-invoice conversion/link integrity
+- append/void payment and invoice allocation
 - ownership isolation / IDOR protection
 - business scoping
 - customer/product optional persistence
+- complete per-customer document history and financial aggregation
 - template metadata
 - export requests
 - upload validation
@@ -42,7 +48,7 @@ Money calculations must use integer minor/base units or another deterministic de
 
 ### End-to-end tests
 Critical user journeys:
-1. new user -> first invoice -> export
+1. new user -> choose pro-forma/invoice -> first document -> export
 2. returning user -> duplicate -> change -> export
 3. settings -> card details -> invoice output
 4. 20-item invoice
@@ -50,6 +56,8 @@ Critical user journeys:
 6. failed network -> retry/draft recovery
 7. template switch preserves totals
 8. PDF/image export output
+9. pro-forma -> convert once -> linked invoice -> partial payment -> paid
+10. customer -> all pro-formas/invoices -> conversion links and correct balance
 
 ### Visual regression
 For every template + key viewport:
@@ -109,10 +117,15 @@ Test matrix:
 - rounding order
 - Rial/Toman presentation
 - formatted/unformatted parse behavior
+- payment sum below/equal/above invoice total
+- voided payment exclusion
+- pro-forma exclusion from billed/paid/outstanding totals
 
 The engine total is authoritative; templates cannot recalculate independently.
 
 Historical snapshot tests must prove that changing settings, calculation-engine implementation or template defaults cannot alter stored authoritative totals for finalized/exported invoices.
+
+Conversion tests must prove that the source pro-forma remains immutable, the invoice receives its own number/snapshot, repeated requests are idempotent, cross-business/customer links are rejected and analytics counts explicit eligible links rather than amount/name matches.
 
 ## 4. Performance budgets
 

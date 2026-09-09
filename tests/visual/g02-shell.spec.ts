@@ -13,7 +13,7 @@ for (const viewport of viewports) {
       await page.setViewportSize(viewport);
       await page.emulateMedia({ reducedMotion: 'reduce' });
       await page.goto(`/?g02-preview=1&theme=${theme}`);
-      await expect(page.getByRole('heading', { name: 'اولین پیش‌فاکتورتان را بسازید' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'اولین سند فروشتان را بسازید' })).toBeVisible();
       await expect(page.locator('html')).toHaveScreenshot(`${viewport.name}-${theme}.png`, { fullPage: true });
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
       expect(overflow).toBe(false);
@@ -30,9 +30,20 @@ test('keyboard navigation, safe-area variables and central CTA', async ({ page }
   });
   await page.keyboard.press('Tab');
   await expect(page.locator(':focus-visible')).toBeVisible();
-  await page.getByRole('button', { name: 'ساخت پیش‌فاکتور' }).last().click();
-  await expect(page.getByRole('heading', { name: 'پیش‌فاکتور جدید' })).toBeVisible();
-  const target = await page.getByRole('button', { name: 'ساخت پیش‌فاکتور' }).last().boundingBox();
+  await page.getByRole('button', { name: 'ساخت سند جدید' }).last().click();
+  await expect(page.getByRole('heading', { name: 'چه سندی می‌سازید؟' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /پیش‌فاکتور/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /فاکتور فروش/ })).toBeVisible();
+  const target = await page.getByRole('button', { name: 'ساخت سند جدید' }).last().boundingBox();
   expect(target?.width).toBeGreaterThanOrEqual(44);
   expect(target?.height).toBeGreaterThanOrEqual(44);
+});
+
+test('last home card clears the fixed navigation', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 640 });
+  await page.goto('/?g02-preview=1');
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  const card = await page.locator('.business-card').boundingBox();
+  const navigation = await page.locator('.bottom-nav').boundingBox();
+  expect(card && navigation && card.y + card.height <= navigation.y - 8).toBe(true);
 });
