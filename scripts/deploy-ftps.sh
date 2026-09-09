@@ -118,7 +118,7 @@ publish_public_files() {
     fi
     remote="server/public/$rel"
     remote_dir="${remote%/*}"
-    commands+="mkdir -p '$remote_dir'; put '$local_file' -o '$remote'; "
+    commands+="mkdir -pf '$remote_dir'; put '$local_file' -o '$remote'; "
   done < <(find "$public_dir" -type f -print0 | sort -z)
 
   if [[ -z "$commands" ]]; then
