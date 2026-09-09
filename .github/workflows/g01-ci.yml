@@ -143,6 +143,14 @@ jobs:
         run: |
           grep -F 'invoice-staging\.box4u\.co' server/public/.htaccess >/dev/null
           grep -F 'X-Robots-Tag "noindex, nofollow, noarchive"' server/public/.htaccess >/dev/null
+      - name: Telegram bootstrap must remain locally bundled
+        run: |
+          if grep -R -E '<script[^>]+(telegram\.org|cdn\.jsdelivr\.net|unpkg\.com)' index.html src; then
+            echo 'Telegram startup must not depend on an external runtime script' >&2
+            exit 1
+          fi
+          grep -F '"@tma.js/sdk": "3.3.0"' package.json >/dev/null
+          grep -F "script-src 'self'" index.html server/public/.htaccess >/dev/null
 
   secrets:
     runs-on: ubuntu-latest
