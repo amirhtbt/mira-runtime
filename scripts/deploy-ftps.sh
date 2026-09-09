@@ -69,8 +69,11 @@ trap cleanup EXIT
 # The FTP user MUST be jailed/chrooted by cPanel to the dedicated Mini App
 # staging application root. Remote ./ must never be the account home or
 # Box4U WordPress root.
+# Historical failed rollback attempts created remote helper directories named
+# `release` and `tinv-staging-rollback`. They are deployment debris, not live
+# application state, so never recursively ingest them into another rollback.
 echo "Backing up current staging tree inside the ephemeral GitHub runner..."
-lftp -c "$lftp_common mirror --verbose --parallel=2 --exclude-glob server/.env --exclude-glob .ftpquota ./ '$backup_dir'; bye"
+lftp -c "$lftp_common mirror --verbose --parallel=2 --exclude-glob server/.env --exclude-glob .ftpquota --exclude-glob 'release/**' --exclude-glob 'tinv-staging-rollback/**' ./ '$backup_dir'; bye"
 
 had_remote_env=0
 if lftp -c "$lftp_common get server/.env -o '$env_backup'; bye" >/dev/null 2>&1; then
@@ -133,7 +136,8 @@ fi
 # random, token-protected, POST-only, self-deleting PHP bridge that exists only
 # for this deployment. No persistent migration endpoint is shipped.
 # Failure output is intentionally reduced to a non-secret category plus SQLSTATE
-# / driver code. Raw exception messages are never returned to Actions logs.
+# / driver code or non-sensitive runtime capability flags. Raw exception
+# messages are never returned to Actions logs.
 migration_token="$(openssl rand -hex 32)"
 migration_hash="$(printf '%s' "$migration_token" | sha256sum | awk '{print $1}')"
 migrator_name=".tinv-migrate-$(openssl rand -hex 12).php"
@@ -168,7 +172,13 @@ try {
     exit;
 } catch (\Throwable \$exception) {
     http_response_code(500);
-    echo "migration_error=php_runtime\n";
+    \$type = preg_replace('/[^A-Za-z0-9_\\\\]/', '', get_class(\$exception)) ?: 'Throwable';
+    echo 'migration_error=php_runtime type=' . \$type
+        . ' php=' . PHP_VERSION_ID
+        . ' pdo=' . (extension_loaded('PDO') ? '1' : '0')
+        . ' pdo_mysql=' . (extension_loaded('pdo_mysql') ? '1' : '0')
+        . ' getenv=' . (function_exists('getenv') ? '1' : '0')
+        . "\n";
     exit;
 }
 EOF
@@ -237,5 +247,11 @@ if [[ "$ready" != "1" ]]; then
   rollback
   exit 1
 fi
+
+# Remove only helper directories that were created by earlier failed versions
+# of this deploy script. They are outside the live DocumentRoot and are not part
+# of the commit-addressed release.
+lftp -c "$lftp_common rm -r release; bye" >/dev/null 2>&1 || true
+lftp -c "$lftp_common rm -r tinv-staging-rollback; bye" >/dev/null 2>&1 || true
 
 echo "Staging deploy, migration, health and DB/config readiness PASS."
