@@ -81,6 +81,14 @@ jobs:
       - name: Install FTPS client
         run: sudo apt-get update -qq && sudo apt-get install -y -qq lftp
 
+      - name: Probe live PHP filesystem boundary
+        env:
+          STAGING_FTPS_HOST: ${{ secrets.STAGING_FTPS_HOST }}
+          STAGING_FTPS_USER: ${{ secrets.STAGING_FTPS_USER }}
+          STAGING_FTPS_PASSWORD: ${{ secrets.STAGING_FTPS_PASSWORD }}
+          STAGING_ORIGIN: ${{ secrets.STAGING_ORIGIN }}
+        run: bash scripts/probe-staging-php-filesystem.sh
+
       - name: Direct deploy, env sync and migration on isolated cPanel staging root
         env:
           STAGING_FTPS_HOST: ${{ secrets.STAGING_FTPS_HOST }}
