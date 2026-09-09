@@ -37,9 +37,6 @@ if [[ ${#STAGING_SESSION_PEPPER} -lt 32 ]]; then
   exit 1
 fi
 
-# These values are inserted into lftp's command language. Keep their accepted
-# character set deliberately narrow. The password never enters the command
-# string: lftp reads it from LFTP_PASSWORD via --env-password.
 if [[ ! "$STAGING_FTPS_HOST" =~ ^[A-Za-z0-9.-]+$ ]]; then
   echo "STAGING_FTPS_HOST contains unsupported characters" >&2
   exit 1
@@ -52,9 +49,6 @@ fi
 rm -rf "$backup_dir" "$env_backup" "$runtime_env" "$migration_log"
 mkdir -p "$backup_dir"
 
-# lftp documents LFTP_PASSWORD + --env-password as the safe alternative to
-# putting a password on the command line. It also avoids .netrc token parsing
-# for generated cPanel passwords containing punctuation.
 export LFTP_PASSWORD="$STAGING_FTPS_PASSWORD"
 lftp_common="set cmd:fail-exit yes; set net:timeout 20; set net:max-retries 2; set ftp:ssl-force yes; set ftp:ssl-protect-data yes; set ssl:verify-certificate yes; open --user \"$STAGING_FTPS_USER\" --env-password -p 21 ftp://$STAGING_FTPS_HOST;"
 
@@ -65,13 +59,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# SAFETY CONTRACT:
-# The FTP user MUST be jailed/chrooted by cPanel to the dedicated Mini App
-# staging application root. Remote ./ must never be the account home or
-# Box4U WordPress root.
-# Historical failed rollback attempts created remote helper directories named
-# `release` and `tinv-staging-rollback`. They are deployment debris, not live
-# application state, so never recursively ingest them into another rollback.
 echo "Backing up current staging tree inside the ephemeral GitHub runner..."
 lftp -c "$lftp_common mirror --verbose --parallel=2 --exclude-glob server/.env --exclude-glob .ftpquota --exclude-glob 'release/**' --exclude-glob 'tinv-staging-rollback/**' ./ '$backup_dir'; bye"
 
@@ -132,12 +119,6 @@ if ! upload_runtime_env; then
   exit 1
 fi
 
-# Shared hosting does not provide a deployment shell. Run migrations through a
-# random, token-protected, POST-only, self-deleting PHP bridge that exists only
-# for this deployment. No persistent migration endpoint is shipped.
-# Failure output is intentionally reduced to a non-secret category plus SQLSTATE
-# / driver code or non-sensitive runtime capability flags. Raw exception
-# messages are never returned to Actions logs.
 migration_token="$(openssl rand -hex 32)"
 migration_hash="$(printf '%s' "$migration_token" | sha256sum | awk '{print $1}')"
 migrator_name=".tinv-migrate-$(openssl rand -hex 12).php"
@@ -158,7 +139,28 @@ if (!hash_equals('$migration_hash', hash('sha256', \$provided))) {
 header('Cache-Control: no-store');
 header('Content-Type: text/plain; charset=utf-8');
 try {
-    require dirname(__DIR__) . '/bin/migrate.php';
+    \$migrationPath = __DIR__ . '/../bin/migrate.php';
+    if (!is_file(\$migrationPath) || !is_readable(\$migrationPath)) {
+        http_response_code(500);
+        echo "migration_error=php_runtime type=PathUnavailable\n";
+        exit;
+    }
+
+    if (function_exists('opcache_invalidate')) {
+        foreach ([
+            \$migrationPath,
+            __DIR__ . '/../bootstrap.php',
+            __DIR__ . '/../src/Config.php',
+            __DIR__ . '/../src/Database.php',
+            __DIR__ . '/../src/Support/Env.php',
+        ] as \$cacheFile) {
+            if (is_file(\$cacheFile)) {
+                @opcache_invalidate(\$cacheFile, true);
+            }
+        }
+    }
+
+    require \$migrationPath;
 } catch (\PDOException \$exception) {
     http_response_code(500);
     \$errorInfo = is_array(\$exception->errorInfo ?? null) ? \$exception->errorInfo : [];
@@ -172,12 +174,16 @@ try {
     exit;
 } catch (\Throwable \$exception) {
     http_response_code(500);
-    \$type = preg_replace('/[^A-Za-z0-9_\\\\]/', '', get_class(\$exception)) ?: 'Throwable';
+    \$type = \$exception instanceof \ParseError ? 'ParseError'
+        : (\$exception instanceof \TypeError ? 'TypeError'
+        : (\$exception instanceof \Error ? 'Error' : 'Throwable'));
     echo 'migration_error=php_runtime type=' . \$type
         . ' php=' . PHP_VERSION_ID
         . ' pdo=' . (extension_loaded('PDO') ? '1' : '0')
         . ' pdo_mysql=' . (extension_loaded('pdo_mysql') ? '1' : '0')
         . ' getenv=' . (function_exists('getenv') ? '1' : '0')
+        . ' dirname=' . (function_exists('dirname') ? '1' : '0')
+        . ' opcache_invalidate=' . (function_exists('opcache_invalidate') ? '1' : '0')
         . "\n";
     exit;
 }
@@ -229,8 +235,6 @@ if [[ "$healthy" != "1" ]] || ! grep -q 'telegram-invoice-api' /tmp/tinv-health.
   exit 1
 fi
 
-# `/api/v1/session` initializes Config + PDO before returning 401 for an
-# anonymous request, so this verifies the real staging .env and DB connection.
 ready_url="${STAGING_ORIGIN%/}/api/v1/session"
 ready=0
 for attempt in 1 2 3 4 5; do
@@ -248,9 +252,6 @@ if [[ "$ready" != "1" ]]; then
   exit 1
 fi
 
-# Remove only helper directories that were created by earlier failed versions
-# of this deploy script. They are outside the live DocumentRoot and are not part
-# of the commit-addressed release.
 lftp -c "$lftp_common rm -r release; bye" >/dev/null 2>&1 || true
 lftp -c "$lftp_common rm -r tinv-staging-rollback; bye" >/dev/null 2>&1 || true
 
