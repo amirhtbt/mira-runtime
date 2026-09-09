@@ -307,15 +307,40 @@ if [[ "$ready" != "1" ]]; then
   exit 1
 fi
 
-runtime_http_code="$(curl --silent --show-error --max-time 15 -o /dev/null -w '%{http_code}' "${STAGING_ORIGIN%/}/tinv-runtime-bootstrap.php" || true)"
-if [[ "$runtime_http_code" != "403" && "$runtime_http_code" != "404" ]]; then
-  echo "Shared-host runtime HTTP-deny smoke check failed; rolling back." >&2
+runtime_paths=(
+  "tinv-runtime-bootstrap.php"
+  "tinv-runtime-runner.php"
+  "tinv-runtime.env"
+  "tinv-runtime-migration-001_g01_foundation.sql"
+  "tinv-runtime-src-Config.php"
+)
+for runtime_path in "${runtime_paths[@]}"; do
+  runtime_http_code="$(curl --silent --show-error --max-time 15 -o /dev/null -w '%{http_code}' "${STAGING_ORIGIN%/}/$runtime_path" || true)"
+  if [[ "$runtime_http_code" != "403" && "$runtime_http_code" != "404" ]]; then
+    echo "Shared-host runtime HTTP-deny smoke check failed for a protected runtime path; rolling back." >&2
+    rollback
+    exit 1
+  fi
+done
+
+frontend_code="$(curl --silent --show-error --max-time 20 -D /tmp/tinv-frontend-headers -o /tmp/tinv-frontend.html -w '%{http_code}' "${STAGING_ORIGIN%/}/" || true)"
+if [[ "$frontend_code" != "200" ]] || ! grep -qi '<div id="root">' /tmp/tinv-frontend.html; then
+  echo "Staging frontend smoke check failed; rolling back." >&2
   rollback
   exit 1
 fi
+
+robots_header="$(tr -d '\r' </tmp/tinv-frontend-headers | awk 'BEGIN { IGNORECASE=1 } /^X-Robots-Tag:/ { print tolower($0) }')"
+for directive in noindex nofollow noarchive; do
+  if [[ "$robots_header" != *"$directive"* ]]; then
+    echo "Staging noindex header check failed; rolling back." >&2
+    rollback
+    exit 1
+  fi
+done
 
 lftp -c "$lftp_common rm '$legacy_env_remote'; bye" >/dev/null 2>&1 || true
 lftp -c "$lftp_common rm -r release; bye" >/dev/null 2>&1 || true
 lftp -c "$lftp_common rm -r tinv-staging-rollback; bye" >/dev/null 2>&1 || true
 
-echo "Staging deploy, migration, health, DB/config readiness and runtime HTTP-deny PASS."
+echo "Staging deploy, migration, health, DB/config readiness, complete runtime HTTP-deny, frontend and noindex PASS."
