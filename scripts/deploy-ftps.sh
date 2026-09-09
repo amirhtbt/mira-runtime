@@ -22,9 +22,9 @@ runtime_env="$runner_tmp/tinv-staging.env"
 migration_log="$runner_tmp/tinv-migrate.log"
 migrator_file=""
 runtime_remote="server/public/.tinv-runtime"
-# Some cPanel FTP configurations reject a literal `.env` filename below the
-# web document root even when its containing directory is HTTP-denied.
-runtime_env_remote="$runtime_remote/runtime.env"
+# The FTP account accepts writes in DocumentRoot but rejects direct `put` into
+# the hidden runtime subdirectory. Apache denies this config path explicitly.
+runtime_env_remote="server/public/tinv-runtime.env"
 legacy_env_remote="server/.env"
 
 if [[ ! -d "$release_dir/server/public/.tinv-runtime" ]]; then
@@ -260,7 +260,7 @@ fi
 
 # The contained runtime is now proven healthy. Remove the legacy environment
 # copy left by earlier source-tree deployments so only the protected runtime
-# location retains staging secrets.
+# config remains active on staging.
 lftp -c "$lftp_common rm '$legacy_env_remote'; bye" >/dev/null 2>&1 || true
 lftp -c "$lftp_common rm -r release; bye" >/dev/null 2>&1 || true
 lftp -c "$lftp_common rm -r tinv-staging-rollback; bye" >/dev/null 2>&1 || true
