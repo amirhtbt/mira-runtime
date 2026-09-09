@@ -19,24 +19,48 @@ final class Env
             [$key, $value] = explode('=', $line, 2);
             $key = trim($key);
             $value = trim($value);
-            if ($key === '' || self::read($key) !== false) {
+            if ($key === '' || self::readExternal($key) !== false || array_key_exists($key, $_ENV)) {
                 continue;
             }
             if ((str_starts_with($value, '"') && str_ends_with($value, '"')) || (str_starts_with($value, "'") && str_ends_with($value, "'"))) {
                 $value = substr($value, 1, -1);
             }
 
-            // Shared hosting commonly disables putenv(). Keep file-loaded
-            // runtime configuration in $_ENV and let read() fall back to it.
+            // Shared hosting may disable environment-mutating/accessor functions.
+            // Keep file-loaded runtime configuration in $_ENV and never require
+            // putenv() or getenv() for application configuration to work.
             $_ENV[$key] = $value;
         }
     }
 
+    private static function readExternal(string $key): string|false
+    {
+        // PHP commonly exposes process/server environment through $_SERVER even
+        // when variables_order omits E or getenv() is disabled by the host.
+        if (array_key_exists($key, $_SERVER) && is_scalar($_SERVER[$key])) {
+            return (string) $_SERVER[$key];
+        }
+
+        if (function_exists('getenv')) {
+            try {
+                $value = getenv($key);
+                if ($value !== false) {
+                    return $value;
+                }
+            } catch (\Throwable) {
+                // A restricted shared host may expose the function name while
+                // denying execution. File-backed configuration still works.
+            }
+        }
+
+        return false;
+    }
+
     private static function read(string $key): string|false
     {
-        $value = getenv($key);
-        if ($value !== false) {
-            return $value;
+        $external = self::readExternal($key);
+        if ($external !== false) {
+            return $external;
         }
 
         if (array_key_exists($key, $_ENV) && is_scalar($_ENV[$key])) {
