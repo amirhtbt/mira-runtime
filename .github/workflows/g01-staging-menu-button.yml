@@ -30,10 +30,10 @@ jobs:
           if not token or not origin:
               raise SystemExit('Required staging secrets are unavailable')
 
-          # Telegram Android composes this native control in an LTR chat UI when
-          # the client language is English. LRM boundaries keep the Persian label
-          # a single bidi unit without changing its visible wording.
-          menu_text = '\u200eساخت فاکتور\u200e'
+          visible_text = 'ساخت فاکتور'
+          # Anchor the Persian label inside Telegram Android's LTR composer while
+          # preserving exactly the same visible wording.
+          menu_text = '\u200e' + visible_text + '\u200e'
 
           def call(method: str, payload: dict | None = None):
               url = f'https://api.telegram.org/bot{token}/{method}'
@@ -64,13 +64,26 @@ jobs:
               raise SystemExit('setChatMenuButton did not return true')
 
           current = call('getChatMenuButton')
-          expected = {
-              'type': 'web_app',
-              'text': menu_text,
-              'web_app': {'url': origin},
-          }
-          if current != expected:
-              raise SystemExit('Telegram menu button verification mismatch')
+          if not isinstance(current, dict):
+              raise SystemExit('Telegram returned an invalid menu button object')
+
+          returned_text = str(current.get('text', ''))
+          returned_url = str((current.get('web_app') or {}).get('url', ''))
+          codepoints = ' '.join(f'U+{ord(char):04X}' for char in returned_text)
+          print(f'returned_type={current.get("type")}')
+          print(f'returned_text_codepoints={codepoints}')
+          print(f'visible_text_match={returned_text.replace(chr(0x200e), "") == visible_text}')
+          print(f'lrm_boundaries_preserved={returned_text == menu_text}')
+          print(f'origin_match={returned_url == origin}')
+
+          if current.get('type') != 'web_app':
+              raise SystemExit('Telegram menu button type verification failed')
+          if returned_text.replace(chr(0x200e), '') != visible_text:
+              raise SystemExit('Telegram menu button visible text verification failed')
+          if returned_url != origin:
+              raise SystemExit('Telegram menu button URL verification failed')
+          if returned_text != menu_text:
+              raise SystemExit('Telegram stripped the bidi anchor; another strategy is required')
 
           print('Staging Telegram menu button bidi configuration: PASS')
           PY
