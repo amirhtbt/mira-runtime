@@ -8,7 +8,8 @@ Branch: `g02/animated-rtl-app-shell`
 
 - RTL-first, Persian-first, mobile-first shell with Telegram light/dark tokens.
 - Locally bundled variable Vazirmatn font; no runtime font/CDN dependency.
-- Home / Invoices / Settings navigation and prominent central `+ پیش‌فاکتور` intent.
+- Home / Invoices / Settings navigation and one prominent central `+ سند جدید` intent with a two-choice pro-forma/invoice surface.
+- Bottom content clearance protects the last card from the fixed navigation and Telegram safe-area inset.
 - New-user empty Home with immediate CTA and no invented records.
 - Returning-user `HomeData` boundary for recent invoices and business/settings status; test fixtures do not enter production state.
 - Designed loading, authentication error, offline and retry states.

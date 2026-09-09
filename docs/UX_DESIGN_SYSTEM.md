@@ -28,7 +28,9 @@ Recommended V1 bottom navigation:
 - تنظیمات
 
 Primary floating/central action:
-- `+ پیش‌فاکتور`
+- `+ سند جدید`
+
+The next surface has only two choices: `پیش‌فاکتور` (default) and `فاکتور فروش`. Both reuse the same editor. An eligible pro-forma detail has one clear `تبدیل به فاکتور` action; payment controls appear only on invoice detail. Do not add separate creation modules or accounting-style navigation.
 
 Do not add tabs without validated usage.
 

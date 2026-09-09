@@ -149,16 +149,20 @@ Minimum entities:
 - business_settings
 - customers
 - products
-- invoices
-- invoice_items
-- invoice_adjustments
-- invoice_snapshots
+- sales_documents (pro-forma and invoice discriminator; one shared aggregate)
+- sales_document_items
+- sales_document_adjustments
+- sales_document_snapshots
+- payments
+- payment_allocations
 - templates
 - template_versions
 - exports
 - sessions
 - app_events (privacy-safe telemetry)
 - migrations
+
+The authoritative lifecycle, conversion, payment and customer-history invariants are defined in `docs/SALES_DOCUMENT_DOMAIN.md`. Pro-forma and invoice rendering/calculation share one implementation; type-specific meaning, numbering and state are explicit domain data rather than custom-label inference.
 
 ### Identity rule
 `users.id` = internal UUID / stable internal key.
@@ -179,9 +183,9 @@ Even if V1 allows one business per user, user-owned domain data should be scoped
 
 This avoids a destructive migration when multiple stores/teams arrive later while keeping multi-user organizations out of V1 scope.
 
-## 7. Invoice snapshotting
+## 7. Sales-document snapshotting
 
-Every finalized/exported invoice must preserve an immutable authoritative snapshot.
+Every finalized/exported pro-forma or invoice must preserve an immutable authoritative snapshot.
 
 Minimum snapshot fields:
 - snapshot schema version
@@ -195,11 +199,13 @@ Minimum snapshot fields:
 - template stable ID and immutable template version
 - relevant notes/terms/payment details
 - finalized/created timestamps needed for the historical document
+- document type, type-specific number and any source/conversion link
 
 Rules:
 - changing a business profile or template later must not alter historical output;
 - historical rendering must not require recalculating totals with a newer engine;
-- editing a finalized historical invoice creates a new draft/clone rather than mutating the immutable snapshot;
+- editing a finalized historical document creates a new draft/clone rather than mutating the immutable snapshot;
+- converting a pro-forma creates a linked invoice and never mutates or relabels the source document;
 - exports reference the exact snapshot/template version they rendered.
 
 ## 8. API versioning
