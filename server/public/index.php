@@ -1,7 +1,9 @@
 <?php
 declare(strict_types=1);
 
-require __DIR__ . '/../bootstrap.php';
+$runtimeBootstrap = __DIR__ . '/.tinv-runtime/bootstrap.php';
+$sourceBootstrap = __DIR__ . '/../bootstrap.php';
+require is_file($runtimeBootstrap) ? $runtimeBootstrap : $sourceBootstrap;
 
 use Tinv\Auth\AuthService;
 use Tinv\Auth\InitDataValidator;
