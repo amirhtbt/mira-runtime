@@ -8,6 +8,7 @@ require __DIR__ . '/TelegramFixture.php';
 use Tinv\Auth\InitDataValidator;
 use Tinv\Auth\ValidationException;
 use Tinv\Http\OriginGuard;
+use Tinv\Support\Env;
 use Tinv\Support\Uuid;
 
 $token = 'unit-test-token-not-a-real-secret';
@@ -64,4 +65,22 @@ Test::run('internal UUID is independent and RFC4122-shaped', function (): void {
     $uuid = Uuid::v4();
     Test::assert((bool) preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/', $uuid));
     Test::assert($uuid !== '777000111');
+});
+
+Test::run('env file loader works without putenv dependency', function (): void {
+    $key = 'TINV_FILE_ENV_' . bin2hex(random_bytes(8));
+    $path = tempnam(sys_get_temp_dir(), 'tinv-env-');
+    if ($path === false) {
+        throw new RuntimeException('Could not create temp env file');
+    }
+
+    try {
+        unset($_ENV[$key]);
+        file_put_contents($path, $key . "=loaded-from-file\n");
+        Env::loadFileIfPresent($path);
+        Test::equals('loaded-from-file', Env::required($key));
+    } finally {
+        unset($_ENV[$key]);
+        @unlink($path);
+    }
 });
