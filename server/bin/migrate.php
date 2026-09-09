@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 echo "migration_phase=bootstrap\n";
-require dirname(__DIR__) . '/bootstrap.php';
+require __DIR__ . '/../bootstrap.php';
 
 use Tinv\Config;
 use Tinv\Database;
@@ -12,7 +12,7 @@ $config = Config::fromEnvironment();
 
 echo "migration_phase=db_connect\n";
 $pdo = Database::connect($config);
-$dir = dirname(__DIR__) . '/migrations';
+$dir = __DIR__ . '/../migrations';
 
 echo "migration_phase=discover_files\n";
 $files = glob($dir . '/*.sql') ?: [];
