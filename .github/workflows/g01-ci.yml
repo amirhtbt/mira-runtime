@@ -104,6 +104,16 @@ jobs:
             echo 'Persistent public migration endpoint detected' >&2
             exit 1
           fi
+      - name: Migration diagnostics must remain redacted
+        run: |
+          grep -F "migration_error=pdo sqlstate=" scripts/deploy-ftps.sh >/dev/null
+          grep -F "migration_error=runtime_config" scripts/deploy-ftps.sh >/dev/null
+          grep -F "migration_error=php_runtime" scripts/deploy-ftps.sh >/dev/null
+          grep -F "grep -Eq '^migration_error=(pdo|runtime_config|php_runtime)( |$)'" scripts/deploy-ftps.sh >/dev/null
+          if grep -F 'getMessage()' scripts/deploy-ftps.sh; then
+            echo 'Raw exception-message diagnostics are forbidden in deployment logs' >&2
+            exit 1
+          fi
       - name: Staging origin must remain noindex
         run: |
           grep -F 'invoice-staging\.box4u\.co' server/public/.htaccess >/dev/null

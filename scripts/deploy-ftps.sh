@@ -19,6 +19,7 @@ runner_tmp="${RUNNER_TEMP:-/tmp}"
 backup_dir="$runner_tmp/tinv-staging-rollback"
 env_backup="$runner_tmp/tinv-staging-env-backup"
 runtime_env="$runner_tmp/tinv-staging.env"
+migration_log="$runner_tmp/tinv-migrate.log"
 migrator_file=""
 
 if [[ ! -d "$release_dir/server/public" ]]; then
@@ -48,7 +49,7 @@ if [[ ! "$STAGING_FTPS_USER" =~ ^[A-Za-z0-9._@+-]+$ ]]; then
   exit 1
 fi
 
-rm -rf "$backup_dir" "$env_backup" "$runtime_env"
+rm -rf "$backup_dir" "$env_backup" "$runtime_env" "$migration_log"
 mkdir -p "$backup_dir"
 
 # lftp documents LFTP_PASSWORD + --env-password as the safe alternative to
@@ -59,7 +60,7 @@ lftp_common="set cmd:fail-exit yes; set net:timeout 20; set net:max-retries 2; s
 
 cleanup() {
   unset LFTP_PASSWORD || true
-  rm -f "$runtime_env" "$env_backup"
+  rm -f "$runtime_env" "$env_backup" "$migration_log"
   if [[ -n "$migrator_file" ]]; then rm -f "$migrator_file"; fi
 }
 trap cleanup EXIT
@@ -131,6 +132,8 @@ fi
 # Shared hosting does not provide a deployment shell. Run migrations through a
 # random, token-protected, POST-only, self-deleting PHP bridge that exists only
 # for this deployment. No persistent migration endpoint is shipped.
+# Failure output is intentionally reduced to a non-secret category plus SQLSTATE
+# / driver code. Raw exception messages are never returned to Actions logs.
 migration_token="$(openssl rand -hex 32)"
 migration_hash="$(printf '%s' "$migration_token" | sha256sum | awk '{print $1}')"
 migrator_name=".tinv-migrate-$(openssl rand -hex 12).php"
@@ -150,7 +153,24 @@ if (!hash_equals('$migration_hash', hash('sha256', \$provided))) {
 @unlink(__FILE__);
 header('Cache-Control: no-store');
 header('Content-Type: text/plain; charset=utf-8');
-require dirname(__DIR__) . '/bin/migrate.php';
+try {
+    require dirname(__DIR__) . '/bin/migrate.php';
+} catch (\PDOException \$exception) {
+    http_response_code(500);
+    \$errorInfo = is_array(\$exception->errorInfo ?? null) ? \$exception->errorInfo : [];
+    \$sqlState = preg_replace('/[^A-Za-z0-9]/', '', (string) (\$errorInfo[0] ?? 'unknown')) ?: 'unknown';
+    \$driverCode = preg_replace('/[^0-9]/', '', (string) (\$errorInfo[1] ?? '')) ?: 'unknown';
+    echo 'migration_error=pdo sqlstate=' . \$sqlState . ' driver=' . \$driverCode . "\n";
+    exit;
+} catch (\RuntimeException \$exception) {
+    http_response_code(500);
+    echo "migration_error=runtime_config\n";
+    exit;
+} catch (\Throwable \$exception) {
+    http_response_code(500);
+    echo "migration_error=php_runtime\n";
+    exit;
+}
 EOF
 chmod 600 "$migrator_file"
 
@@ -162,11 +182,20 @@ if ! lftp -c "$lftp_common put '$migrator_file' -o '$remote_migrator'; bye"; the
 fi
 
 migration_url="${STAGING_ORIGIN%/}/$migrator_name"
-if ! curl --fail --silent --show-error --max-time 30 \
+migration_code="$(curl --silent --show-error --max-time 30 \
   --request POST \
   -H "X-Tinv-Deploy-Token: $migration_token" \
-  "$migration_url" >/tmp/tinv-migrate.log; then
+  -o "$migration_log" \
+  -w '%{http_code}' \
+  "$migration_url" || true)"
+
+if [[ "$migration_code" != "200" ]]; then
   lftp -c "$lftp_common rm '$remote_migrator'; bye" >/dev/null 2>&1 || true
+  if [[ -s "$migration_log" ]] && grep -Eq '^migration_error=(pdo|runtime_config|php_runtime)( |$)' "$migration_log"; then
+    cat "$migration_log" >&2
+  else
+    echo "migration_error=http_${migration_code:-000}" >&2
+  fi
   echo "Staging migration failed; rolling back files and runtime environment." >&2
   rollback
   exit 1
