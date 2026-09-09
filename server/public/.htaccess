@@ -5,7 +5,7 @@ RewriteEngine On
 
 # The contained PHP runtime is executable only through internal PHP includes.
 # Never serve its files directly over HTTP.
-RewriteRule ^\.tinv-runtime(?:/|$) - [F,L]
+RewriteRule ^tinv-runtime(?:/|$) - [F,L]
 
 # The staging runtime config is uploaded to DocumentRoot for cPanel FTPS
 # compatibility, but must never be retrievable over HTTP.

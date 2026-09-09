@@ -8,7 +8,7 @@ fi
 
 release_dir="${1:-deploy-package/release}"
 sha="${GITHUB_SHA:-local}"
-runtime_dir="$release_dir/server/public/.tinv-runtime"
+runtime_dir="$release_dir/server/public/tinv-runtime"
 
 rm -rf "$release_dir"
 mkdir -p "$release_dir"
@@ -16,7 +16,9 @@ mkdir -p "$release_dir"
 # Keep the source-shaped tree for rollback/debug parity, but do not ship a
 # source-tree .env. Some shared-host PHP configurations restrict filesystem
 # access to the configured DocumentRoot, so the executable runtime is also
-# copied into a denied directory inside server/public.
+# copied into an HTTP-denied directory inside server/public. Use a normal
+# directory name because the live cPanel/PHP boundary does not reliably expose
+# files inside hidden dot-directories to PHP even though FTPS can upload them.
 cp -a server "$release_dir/server"
 rm -f "$release_dir/server/.env"
 
@@ -46,7 +48,7 @@ commit_sha=${sha}
 built_at_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 gate=G01
 web_document_root=server/public
-php_runtime=server/public/.tinv-runtime
+php_runtime=server/public/tinv-runtime
 deploy_mode=direct-ftps-no-artifact
 EOF
 

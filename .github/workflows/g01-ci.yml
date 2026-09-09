@@ -121,6 +121,12 @@ jobs:
             exit 1
           fi
           grep -F '$_ENV[$key] = $value;' server/src/Support/Env.php >/dev/null
+      - name: Contained runtime must remain HTTP-denied
+        run: |
+          grep -F 'runtime_dir="$release_dir/server/public/tinv-runtime"' scripts/prepare-shared-host-release.sh >/dev/null
+          grep -F 'runtime_remote="server/public/tinv-runtime"' scripts/deploy-ftps.sh >/dev/null
+          grep -F 'RewriteRule ^tinv-runtime(?:/|$) - [F,L]' server/public/.htaccess >/dev/null
+          grep -F 'RewriteRule ^tinv-runtime\.env$ - [F,L]' server/public/.htaccess >/dev/null
       - name: Staging origin must remain noindex
         run: |
           grep -F 'invoice-staging\.box4u\.co' server/public/.htaccess >/dev/null
