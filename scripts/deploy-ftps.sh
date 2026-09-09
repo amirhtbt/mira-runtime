@@ -22,7 +22,9 @@ runtime_env="$runner_tmp/tinv-staging.env"
 migration_log="$runner_tmp/tinv-migrate.log"
 migrator_file=""
 runtime_remote="server/public/.tinv-runtime"
-runtime_env_remote="$runtime_remote/.env"
+# Some cPanel FTP configurations reject a literal `.env` filename below the
+# web document root even when its containing directory is HTTP-denied.
+runtime_env_remote="$runtime_remote/runtime.env"
 legacy_env_remote="server/.env"
 
 if [[ ! -d "$release_dir/server/public/.tinv-runtime" ]]; then
