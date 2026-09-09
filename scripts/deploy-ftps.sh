@@ -7,12 +7,12 @@ set -euo pipefail
 : "${STAGING_ORIGIN:?STAGING_ORIGIN is required}"
 : "${STAGING_TELEGRAM_BOT_TOKEN:?STAGING_TELEGRAM_BOT_TOKEN is required}"
 : "${STAGING_SESSION_PEPPER:?STAGING_SESSION_PEPPER is required}"
+: "${STAGING_DB_NAME:?STAGING_DB_NAME is required}"
+: "${STAGING_DB_USER:?STAGING_DB_USER is required}"
 : "${STAGING_DB_PASSWORD:?STAGING_DB_PASSWORD is required}"
 
 STAGING_DB_HOST="${STAGING_DB_HOST:-localhost}"
 STAGING_DB_PORT="${STAGING_DB_PORT:-3306}"
-STAGING_DB_NAME="${STAGING_DB_NAME:-boxuco_invoice_stg}"
-STAGING_DB_USER="${STAGING_DB_USER:-boxuco_invoice_stg}"
 
 release_dir="${1:-deploy-package/release}"
 runner_tmp="${RUNNER_TEMP:-/tmp}"
