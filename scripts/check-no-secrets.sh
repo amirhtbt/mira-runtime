@@ -8,14 +8,19 @@ if [[ -n "$tracked_env" ]]; then
   exit 1
 fi
 
-if git grep -nE '[0-9]{6,12}:[A-Za-z0-9_-]{30,}' -- ':!docs/**' ':!tests/**'; then
-  echo "Possible Telegram bot token detected in repository."
+secret_pattern='([0-9]{6,12}:[A-Za-z0-9_-]{30,})|(gh[pousr]_[A-Za-z0-9]{30,})|(AKIA[0-9A-Z]{16})|(-----BEGIN (RSA |EC |OPENSSH |)?PRIVATE KEY-----)'
+
+if git grep -nE "$secret_pattern" -- ':!docs/**' ':!tests/**'; then
+  echo "Possible live credential or private key detected in current repository tree."
   exit 1
 fi
 
-if git grep -nE -- '-----BEGIN (RSA |EC |OPENSSH |)?PRIVATE KEY-----'; then
-  echo "Private key material detected in repository."
+# Before any temporary public-visibility window, scan the full reachable Git
+# history as well as HEAD. Deleted credentials are still public if they remain
+# in commit history, so a current-tree-only scan is insufficient.
+if git log --all -p --no-ext-diff --text --pretty=format: | grep -E "$secret_pattern" >/dev/null; then
+  echo "Possible live credential or private key detected in reachable git history."
   exit 1
 fi
 
-echo "secret scan PASS"
+echo "secret scan PASS (current tree + reachable history)"

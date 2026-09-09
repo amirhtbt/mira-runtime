@@ -89,9 +89,9 @@ jobs:
           STAGING_ORIGIN: ${{ secrets.STAGING_ORIGIN }}
           STAGING_TELEGRAM_BOT_TOKEN: ${{ secrets.STAGING_TELEGRAM_BOT_TOKEN }}
           STAGING_SESSION_PEPPER: ${{ secrets.STAGING_SESSION_PEPPER }}
+          STAGING_DB_NAME: ${{ secrets.STAGING_DB_NAME }}
+          STAGING_DB_USER: ${{ secrets.STAGING_DB_USER }}
           STAGING_DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
           STAGING_DB_HOST: localhost
           STAGING_DB_PORT: 3306
-          STAGING_DB_NAME: boxuco_invoice_stg
-          STAGING_DB_USER: boxuco_invoice_stg
         run: bash scripts/deploy-ftps.sh
