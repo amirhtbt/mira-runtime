@@ -21,12 +21,20 @@ env_backup="$runner_tmp/tinv-staging-env-backup"
 runtime_env="$runner_tmp/tinv-staging.env"
 migration_log="$runner_tmp/tinv-migrate.log"
 migrator_file=""
-runtime_remote="server/public/tinv-runtime"
 runtime_env_remote="server/public/tinv-runtime.env"
 legacy_env_remote="server/.env"
 
-if [[ ! -d "$release_dir/server/public/tinv-runtime" ]]; then
-  echo "Release directory is incomplete: $release_dir" >&2
+if [[ ! -f "$release_dir/server/public/tinv-runtime-bootstrap.php" \
+   || ! -f "$release_dir/server/public/tinv-runtime-runner.php" \
+   || ! -f "$release_dir/server/public/tinv-runtime-src-Config.php" \
+   || ! -f "$release_dir/server/public/tinv-runtime-src-Database.php" \
+   || ! -f "$release_dir/server/public/tinv-runtime-src-Support__Env.php" ]]; then
+  echo "Release directory is incomplete: flat PHP runtime missing" >&2
+  exit 1
+fi
+
+if ! find "$release_dir/server/public" -maxdepth 1 -type f -name 'tinv-runtime-migration-*.sql' | grep -q .; then
+  echo "Release directory is incomplete: migration SQL missing" >&2
   exit 1
 fi
 
@@ -142,21 +150,29 @@ if (!hash_equals('$migration_hash', hash('sha256', \$provided))) {
 header('Cache-Control: no-store');
 header('Content-Type: text/plain; charset=utf-8');
 try {
-    \$runtimeRoot = __DIR__ . '/tinv-runtime';
-    \$migrationPath = \$runtimeRoot . '/bin/migrate.php';
-    if (!is_file(\$migrationPath) || !is_readable(\$migrationPath)) {
+    \$runnerPath = __DIR__ . '/tinv-runtime-runner.php';
+    \$bootstrapPath = __DIR__ . '/tinv-runtime-bootstrap.php';
+    \$envPath = __DIR__ . '/tinv-runtime.env';
+    \$migrationFiles = glob(__DIR__ . '/tinv-runtime-migration-*.sql') ?: [];
+    if (!is_file(\$runnerPath) || !is_readable(\$runnerPath)) {
         http_response_code(500);
-        echo "migration_error=php_runtime type=PathUnavailable\n";
+        echo 'migration_error=php_runtime type=PathUnavailable'
+            . ' index=' . (is_file(__DIR__ . '/index.php') ? '1' : '0')
+            . ' bootstrap=' . (is_file(\$bootstrapPath) ? '1' : '0')
+            . ' runner=' . (is_file(\$runnerPath) ? '1' : '0')
+            . ' env=' . (is_file(\$envPath) ? '1' : '0')
+            . ' migration=' . (count(\$migrationFiles) > 0 ? '1' : '0')
+            . "\n";
         exit;
     }
 
     if (function_exists('opcache_invalidate')) {
         foreach ([
-            \$migrationPath,
-            \$runtimeRoot . '/bootstrap.php',
-            \$runtimeRoot . '/src/Config.php',
-            \$runtimeRoot . '/src/Database.php',
-            \$runtimeRoot . '/src/Support/Env.php',
+            \$runnerPath,
+            \$bootstrapPath,
+            __DIR__ . '/tinv-runtime-src-Config.php',
+            __DIR__ . '/tinv-runtime-src-Database.php',
+            __DIR__ . '/tinv-runtime-src-Support__Env.php',
         ] as \$cacheFile) {
             if (is_file(\$cacheFile)) {
                 @opcache_invalidate(\$cacheFile, true);
@@ -164,7 +180,7 @@ try {
         }
     }
 
-    require \$migrationPath;
+    require \$runnerPath;
 } catch (\PDOException \$exception) {
     http_response_code(500);
     \$errorInfo = is_array(\$exception->errorInfo ?? null) ? \$exception->errorInfo : [];
@@ -256,8 +272,15 @@ if [[ "$ready" != "1" ]]; then
   exit 1
 fi
 
+runtime_http_code="$(curl --silent --show-error --max-time 15 -o /dev/null -w '%{http_code}' "${STAGING_ORIGIN%/}/tinv-runtime-bootstrap.php" || true)"
+if [[ "$runtime_http_code" != "403" && "$runtime_http_code" != "404" ]]; then
+  echo "Shared-host runtime HTTP-deny smoke check failed; rolling back." >&2
+  rollback
+  exit 1
+fi
+
 lftp -c "$lftp_common rm '$legacy_env_remote'; bye" >/dev/null 2>&1 || true
 lftp -c "$lftp_common rm -r release; bye" >/dev/null 2>&1 || true
 lftp -c "$lftp_common rm -r tinv-staging-rollback; bye" >/dev/null 2>&1 || true
 
-echo "Staging deploy, migration, health and DB/config readiness PASS."
+echo "Staging deploy, migration, health, DB/config readiness and runtime HTTP-deny PASS."
