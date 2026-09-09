@@ -48,6 +48,21 @@ describe('TelegramAdapter', () => {
     const adapter = new TelegramAdapter(app);
     expect(adapter.getInitData()).toBe('signed-data');
     expect(adapter.snapshot().colorScheme).toBe('dark');
+    expect(adapter.snapshot()).toMatchObject({
+      platform: 'android', version: '9.6', viewportHeight: 700, viewportStableHeight: 680,
+      safeArea: { top: 10, bottom: 20, left: 0, right: 0 },
+      contentSafeArea: { top: 42, bottom: 20, left: 0, right: 0 }
+    });
+  });
+
+  it('subscribes to and removes theme, viewport and safe-area events', () => {
+    const app = mockApp();
+    const adapter = new TelegramAdapter(app);
+    const handler = vi.fn();
+    const unsubscribe = adapter.onRuntimeChange(handler);
+    expect(app.onEvent).toHaveBeenCalledTimes(4);
+    unsubscribe();
+    expect(app.offEvent).toHaveBeenCalledTimes(4);
   });
 
   it('cleans up Telegram back-button handlers', () => {
