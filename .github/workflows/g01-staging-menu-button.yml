@@ -1,0 +1,91 @@
+name: G01 Configure staging Telegram menu button
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['g01/android-menu-bidi']
+    paths:
+      - '.github/workflows/g01-staging-menu-button.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apply and verify Persian bidi-safe menu button
+        env:
+          BOT_TOKEN: ${{ secrets.STAGING_TELEGRAM_BOT_TOKEN }}
+          STAGING_ORIGIN: ${{ secrets.STAGING_ORIGIN }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.error
+          import urllib.request
+
+          token = os.environ.get('BOT_TOKEN', '')
+          origin = os.environ.get('STAGING_ORIGIN', '')
+          if not token or not origin:
+              raise SystemExit('Required staging secrets are unavailable')
+
+          visible_text = 'ساخت فاکتور'
+          # Anchor the Persian label inside Telegram Android's LTR composer while
+          # preserving exactly the same visible wording.
+          menu_text = '\u200e' + visible_text + '\u200e'
+
+          def call(method: str, payload: dict | None = None):
+              url = f'https://api.telegram.org/bot{token}/{method}'
+              body = json.dumps(payload or {}, ensure_ascii=False).encode('utf-8')
+              request = urllib.request.Request(
+                  url,
+                  data=body,
+                  headers={'Content-Type': 'application/json'},
+                  method='POST',
+              )
+              try:
+                  with urllib.request.urlopen(request, timeout=20) as response:
+                      data = json.loads(response.read().decode('utf-8'))
+              except urllib.error.HTTPError as exc:
+                  raise SystemExit(f'Telegram Bot API HTTP failure: {exc.code}') from None
+              if data.get('ok') is not True:
+                  raise SystemExit(f'Telegram Bot API rejected {method}: error_code={data.get("error_code")}')
+              return data.get('result')
+
+          changed = call('setChatMenuButton', {
+              'menu_button': {
+                  'type': 'web_app',
+                  'text': menu_text,
+                  'web_app': {'url': origin},
+              }
+          })
+          if changed is not True:
+              raise SystemExit('setChatMenuButton did not return true')
+
+          current = call('getChatMenuButton')
+          if not isinstance(current, dict):
+              raise SystemExit('Telegram returned an invalid menu button object')
+
+          returned_text = str(current.get('text', ''))
+          returned_url = str((current.get('web_app') or {}).get('url', ''))
+          codepoints = ' '.join(f'U+{ord(char):04X}' for char in returned_text)
+          normalized_origin = origin.rstrip('/')
+          normalized_returned_url = returned_url.rstrip('/')
+          print(f'returned_type={current.get("type")}')
+          print(f'returned_text_codepoints={codepoints}')
+          print(f'visible_text_match={returned_text.replace(chr(0x200e), "") == visible_text}')
+          print(f'lrm_boundaries_preserved={returned_text == menu_text}')
+          print(f'origin_match={normalized_returned_url == normalized_origin}')
+
+          if current.get('type') != 'web_app':
+              raise SystemExit('Telegram menu button type verification failed')
+          if returned_text.replace(chr(0x200e), '') != visible_text:
+              raise SystemExit('Telegram menu button visible text verification failed')
+          if normalized_returned_url != normalized_origin:
+              raise SystemExit('Telegram menu button URL verification failed')
+          if returned_text != menu_text:
+              raise SystemExit('Telegram stripped the bidi anchor; another strategy is required')
+
+          print('Staging Telegram menu button bidi configuration: PASS')
+          PY
