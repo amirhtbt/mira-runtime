@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-$runtimeBootstrap = __DIR__ . '/tinv-runtime/bootstrap.php';
+$runtimeBootstrap = __DIR__ . '/tinv-runtime-bootstrap.php';
 $sourceBootstrap = __DIR__ . '/../bootstrap.php';
 require is_file($runtimeBootstrap) ? $runtimeBootstrap : $sourceBootstrap;
 
