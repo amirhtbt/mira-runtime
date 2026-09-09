@@ -21,8 +21,11 @@ env_backup="$runner_tmp/tinv-staging-env-backup"
 runtime_env="$runner_tmp/tinv-staging.env"
 migration_log="$runner_tmp/tinv-migrate.log"
 migrator_file=""
+runtime_remote="server/public/.tinv-runtime"
+runtime_env_remote="$runtime_remote/.env"
+legacy_env_remote="server/.env"
 
-if [[ ! -d "$release_dir/server/public" ]]; then
+if [[ ! -d "$release_dir/server/public/.tinv-runtime" ]]; then
   echo "Release directory is incomplete: $release_dir" >&2
   exit 1
 fi
@@ -60,10 +63,10 @@ cleanup() {
 trap cleanup EXIT
 
 echo "Backing up current staging tree inside the ephemeral GitHub runner..."
-lftp -c "$lftp_common mirror --verbose --parallel=2 --exclude-glob server/.env --exclude-glob .ftpquota --exclude-glob 'release/**' --exclude-glob 'tinv-staging-rollback/**' ./ '$backup_dir'; bye"
+lftp -c "$lftp_common mirror --verbose --parallel=2 --exclude-glob '$legacy_env_remote' --exclude-glob '$runtime_env_remote' --exclude-glob .ftpquota --exclude-glob 'release/**' --exclude-glob 'tinv-staging-rollback/**' ./ '$backup_dir'; bye"
 
 had_remote_env=0
-if lftp -c "$lftp_common get server/.env -o '$env_backup'; bye" >/dev/null 2>&1; then
+if lftp -c "$lftp_common get '$runtime_env_remote' -o '$env_backup'; bye" >/dev/null 2>&1; then
   had_remote_env=1
 fi
 
@@ -86,24 +89,24 @@ EOF
 chmod 600 "$runtime_env"
 
 deploy_files() {
-  lftp -c "$lftp_common mirror --reverse --delete --verbose --parallel=2 --exclude-glob server/.env --exclude-glob .ftpquota '$release_dir' ./; bye"
+  lftp -c "$lftp_common mirror --reverse --delete --verbose --parallel=2 --exclude-glob '$legacy_env_remote' --exclude-glob '$runtime_env_remote' --exclude-glob .ftpquota '$release_dir' ./; bye"
 }
 
 upload_runtime_env() {
-  lftp -c "$lftp_common put '$runtime_env' -o server/.env; chmod 600 server/.env; bye"
+  lftp -c "$lftp_common put '$runtime_env' -o '$runtime_env_remote'; chmod 600 '$runtime_env_remote'; bye"
 }
 
 restore_runtime_env() {
   if [[ "$had_remote_env" == "1" ]]; then
-    lftp -c "$lftp_common put '$env_backup' -o server/.env; chmod 600 server/.env; bye" || true
+    lftp -c "$lftp_common put '$env_backup' -o '$runtime_env_remote'; chmod 600 '$runtime_env_remote'; bye" || true
   else
-    lftp -c "$lftp_common rm server/.env; bye" >/dev/null 2>&1 || true
+    lftp -c "$lftp_common rm '$runtime_env_remote'; bye" >/dev/null 2>&1 || true
   fi
 }
 
 rollback() {
   echo "Restoring previous staging tree..." >&2
-  lftp -c "$lftp_common mirror --reverse --delete --verbose --parallel=2 --exclude-glob server/.env --exclude-glob .ftpquota '$backup_dir' ./; bye" || true
+  lftp -c "$lftp_common mirror --reverse --delete --verbose --parallel=2 --exclude-glob '$legacy_env_remote' --exclude-glob '$runtime_env_remote' --exclude-glob .ftpquota '$backup_dir' ./; bye" || true
   restore_runtime_env
 }
 
@@ -139,7 +142,8 @@ if (!hash_equals('$migration_hash', hash('sha256', \$provided))) {
 header('Cache-Control: no-store');
 header('Content-Type: text/plain; charset=utf-8');
 try {
-    \$migrationPath = __DIR__ . '/../bin/migrate.php';
+    \$runtimeRoot = __DIR__ . '/.tinv-runtime';
+    \$migrationPath = \$runtimeRoot . '/bin/migrate.php';
     if (!is_file(\$migrationPath) || !is_readable(\$migrationPath)) {
         http_response_code(500);
         echo "migration_error=php_runtime type=PathUnavailable\n";
@@ -149,10 +153,10 @@ try {
     if (function_exists('opcache_invalidate')) {
         foreach ([
             \$migrationPath,
-            __DIR__ . '/../bootstrap.php',
-            __DIR__ . '/../src/Config.php',
-            __DIR__ . '/../src/Database.php',
-            __DIR__ . '/../src/Support/Env.php',
+            \$runtimeRoot . '/bootstrap.php',
+            \$runtimeRoot . '/src/Config.php',
+            \$runtimeRoot . '/src/Database.php',
+            \$runtimeRoot . '/src/Support/Env.php',
         ] as \$cacheFile) {
             if (is_file(\$cacheFile)) {
                 @opcache_invalidate(\$cacheFile, true);
@@ -252,6 +256,10 @@ if [[ "$ready" != "1" ]]; then
   exit 1
 fi
 
+# The contained runtime is now proven healthy. Remove the legacy environment
+# copy left by earlier source-tree deployments so only the protected runtime
+# location retains staging secrets.
+lftp -c "$lftp_common rm '$legacy_env_remote'; bye" >/dev/null 2>&1 || true
 lftp -c "$lftp_common rm -r release; bye" >/dev/null 2>&1 || true
 lftp -c "$lftp_common rm -r tinv-staging-rollback; bye" >/dev/null 2>&1 || true
 
