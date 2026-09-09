@@ -7,6 +7,10 @@ RewriteEngine On
 # Never serve its files directly over HTTP.
 RewriteRule ^\.tinv-runtime(?:/|$) - [F,L]
 
+# The staging runtime config is uploaded to DocumentRoot for cPanel FTPS
+# compatibility, but must never be retrievable over HTTP.
+RewriteRule ^tinv-runtime\.env$ - [F,L]
+
 # Keep the V1 API same-origin and route every API path through PHP.
 RewriteRule ^api(?:/|$) index.php [L,QSA]
 
