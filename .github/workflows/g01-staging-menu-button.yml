@@ -70,17 +70,19 @@ jobs:
           returned_text = str(current.get('text', ''))
           returned_url = str((current.get('web_app') or {}).get('url', ''))
           codepoints = ' '.join(f'U+{ord(char):04X}' for char in returned_text)
+          normalized_origin = origin.rstrip('/')
+          normalized_returned_url = returned_url.rstrip('/')
           print(f'returned_type={current.get("type")}')
           print(f'returned_text_codepoints={codepoints}')
           print(f'visible_text_match={returned_text.replace(chr(0x200e), "") == visible_text}')
           print(f'lrm_boundaries_preserved={returned_text == menu_text}')
-          print(f'origin_match={returned_url == origin}')
+          print(f'origin_match={normalized_returned_url == normalized_origin}')
 
           if current.get('type') != 'web_app':
               raise SystemExit('Telegram menu button type verification failed')
           if returned_text.replace(chr(0x200e), '') != visible_text:
               raise SystemExit('Telegram menu button visible text verification failed')
-          if returned_url != origin:
+          if normalized_returned_url != normalized_origin:
               raise SystemExit('Telegram menu button URL verification failed')
           if returned_text != menu_text:
               raise SystemExit('Telegram stripped the bidi anchor; another strategy is required')
