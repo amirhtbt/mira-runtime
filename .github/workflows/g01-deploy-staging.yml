@@ -79,7 +79,11 @@ jobs:
         run: bash scripts/prepare-shared-host-release.sh
 
       - name: Install FTPS client
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq lftp
+        run: |
+          sudo apt-get update -qq \
+            -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/ubuntu.sources \
+            -o Dir::Etc::sourceparts=-
+          sudo apt-get install -y -qq lftp
 
       - name: Direct deploy, env sync and migration on isolated cPanel staging root
         env:
