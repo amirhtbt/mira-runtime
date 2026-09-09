@@ -19,6 +19,6 @@ spl_autoload_register(static function (string $class): void {
 Tinv\Support\Env::loadFileIfPresent(TINV_PROJECT_ROOT . '/.env');
 Tinv\Support\Env::loadFileIfPresent(TINV_SERVER_ROOT . '/.env');
 // In the packaged shared-host runtime, TINV_SERVER_ROOT is the protected
-// `.tinv-runtime` directory inside DocumentRoot. cPanel FTPS accepts runtime
+// `tinv-runtime` directory inside DocumentRoot. cPanel FTPS writes the runtime
 // config at its parent webroot while Apache explicitly denies direct access.
 Tinv\Support\Env::loadFileIfPresent(TINV_SERVER_ROOT . '/../tinv-runtime.env');
