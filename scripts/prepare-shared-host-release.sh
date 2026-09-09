@@ -16,9 +16,10 @@ mkdir -p "$release_dir"
 # Keep the source-shaped tree for rollback/debug parity, but do not ship a
 # source-tree .env. Some shared-host PHP configurations restrict filesystem
 # access to the configured DocumentRoot, so the executable runtime is also
-# copied into an HTTP-denied directory inside server/public. Use a normal
-# directory name because the live cPanel/PHP boundary does not reliably expose
-# files inside hidden dot-directories to PHP even though FTPS can upload them.
+# copied into a directory inside server/public. The parent public .htaccess
+# explicitly denies every HTTP request for this directory; avoid a nested
+# authorization .htaccess because the live cPanel PHP handler is being tested
+# for filesystem readability of contained PHP runtime files.
 cp -a server "$release_dir/server"
 rm -f "$release_dir/server/.env"
 
@@ -28,16 +29,6 @@ cp server/bootstrap.php "$runtime_dir/bootstrap.php"
 cp -a server/src "$runtime_dir/src"
 cp -a server/migrations "$runtime_dir/migrations"
 cp -a server/bin "$runtime_dir/bin"
-cat > "$runtime_dir/.htaccess" <<'EOF'
-Options -Indexes
-<IfModule mod_authz_core.c>
-  Require all denied
-</IfModule>
-<IfModule !mod_authz_core.c>
-  Order allow,deny
-  Deny from all
-</IfModule>
-EOF
 
 # Frontend and PHP entry point share the same public origin.
 cp -a dist/. "$release_dir/server/public/"
