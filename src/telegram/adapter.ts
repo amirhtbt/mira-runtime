@@ -15,6 +15,14 @@ export interface TelegramRuntimeSnapshot {
   contentSafeArea: TelegramInsets;
 }
 
+export function applyRuntimeCssVariables(runtime: TelegramRuntimeSnapshot, target: CSSStyleDeclaration = document.documentElement.style): void {
+  target.setProperty('--tg-viewport-height', `${runtime.viewportHeight}px`);
+  target.setProperty('--tg-viewport-stable-height', `${runtime.viewportStableHeight}px`);
+  for (const [edge, value] of Object.entries(runtime.safeArea)) target.setProperty(`--tg-safe-area-inset-${edge}`, `${value}px`);
+  for (const [edge, value] of Object.entries(runtime.contentSafeArea)) target.setProperty(`--tg-content-safe-area-inset-${edge}`, `${value}px`);
+  target.colorScheme = runtime.colorScheme;
+}
+
 const zeroInsets: TelegramInsets = { top: 0, bottom: 0, left: 0, right: 0 };
 let sdkStarted = false;
 let viewportMount: Promise<void> | undefined;
@@ -26,6 +34,7 @@ function startLocalSdk(): boolean {
     if (sdkStarted) return true;
     init();
     themeParams.mount();
+    themeParams.bindCssVars();
     miniApp.mount();
     backButton.mount.ifAvailable();
     viewportMount = viewport.mount.isAvailable() ? viewport.mount() : undefined;

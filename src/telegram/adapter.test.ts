@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { TelegramAdapter } from './adapter';
+import { applyRuntimeCssVariables, TelegramAdapter } from './adapter';
 import type { TelegramWebApp } from './types';
 
 function mockApp(): TelegramWebApp {
@@ -78,5 +78,14 @@ describe('TelegramAdapter', () => {
     expect(app.BackButton?.onClick).toHaveBeenCalledTimes(2);
     expect(app.BackButton?.offClick).toHaveBeenCalledTimes(2);
     expect(app.BackButton?.hide).toHaveBeenCalledTimes(1);
+  });
+
+  it('projects viewport, safe-area and theme state into CSS variables', () => {
+    const values = new Map<string, string>();
+    const target = { setProperty: (key: string, value: string) => values.set(key, value), colorScheme: '' } as unknown as CSSStyleDeclaration;
+    applyRuntimeCssVariables(new TelegramAdapter(mockApp()).snapshot(), target);
+    expect(values.get('--tg-viewport-stable-height')).toBe('680px');
+    expect(values.get('--tg-content-safe-area-inset-top')).toBe('42px');
+    expect(target.colorScheme).toBe('dark');
   });
 });

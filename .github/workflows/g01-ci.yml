@@ -1,8 +1,8 @@
-name: G01 CI
+name: Quality CI
 
 on:
   push:
-    branches: [main, 'g01/**']
+    branches: [main, 'g01/**', 'g02/**']
   pull_request:
     branches: [main]
 
@@ -18,11 +18,15 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: package.json
+          cache-dependency-path: package-lock.json
       - name: Install pinned frontend dependencies
-        run: npm install --ignore-scripts --no-audit --no-fund
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Typecheck, tests, build and bundle secret scan
         run: npm run check
+      - name: Install visual-test browser
+        run: npx playwright install --with-deps chromium
+      - name: RTL viewport visual regression
+        run: npm run test:visual
 
   backend:
     runs-on: ubuntu-latest

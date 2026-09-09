@@ -5,7 +5,7 @@ const sdk = vi.hoisted(() => {
   return {
     init: vi.fn(), retrieveLaunchParams: vi.fn(), retrieveRawInitData: vi.fn(), on: vi.fn(), off: vi.fn(),
     miniApp: { mount: vi.fn(), ready: available, isDark: vi.fn(() => true) },
-    themeParams: { mount: vi.fn(), isDark: vi.fn(() => true) },
+    themeParams: { mount: vi.fn(), bindCssVars: vi.fn(), isDark: vi.fn(() => true) },
     viewport: {
       mount: Object.assign(vi.fn(() => Promise.resolve()), { isAvailable: vi.fn(() => true) }),
       expand: available, isMounted: vi.fn(() => false), height: vi.fn(() => 700), stableHeight: vi.fn(() => 680),
@@ -36,6 +36,7 @@ describe('bundled Telegram SDK bootstrap', () => {
     expect(adapter.getInitData()).toBe('query_id=signed-runtime-data');
     expect(adapter.snapshot()).toMatchObject({ platform: 'tdesktop', version: '9.6', colorScheme: 'dark' });
     expect(sdk.init).toHaveBeenCalledOnce();
+    expect(sdk.themeParams.bindCssVars).toHaveBeenCalledOnce();
   });
 
   it('does not invent Telegram authentication in a direct browser', async () => {

@@ -1,14 +1,14 @@
 # Current Execution Order
 
-Status date: 2026-09-08
-Repository: `amirhtbt/telegram-invoice-miniapp`
+Status date: 2026-09-09
+Repository: `amirhtbt/mira-runtime`
 Default branch: `main`
 
 ## Current gate
 
-**G01 — Telegram Mini App foundation and trusted authentication**
-GitHub Issue: #2
-State: ACTIVE — implementation merged; Shataban Germany hosting/PHP runtime confirmed; isolated staging deployment + real Telegram device acceptance pending.
+**G02 — Animated RTL app shell and design system**
+GitHub Issue: #3
+State: ACTIVE — G01 is accepted; production-quality Persian shell implementation and acceptance are in progress.
 
 G00 / Issue #1 is accepted and must not be reopened unless a regression, new platform constraint or explicit owner decision is documented.
 
@@ -29,12 +29,17 @@ G00 / Issue #1 is accepted and must not be reopened unless a regression, new pla
 - PHP 8.2 is available with `memory_limit=1024M`, `max_execution_time=300`, `post_max_size=512M`, `upload_max_filesize=512M` and required G01 extensions.
 - Existing Box4U PHP/domain settings are explicitly out of scope and must not be changed by G01.
 - Routine GitHub artifact retention is removed from staging deployment. Direct GitHub Actions → isolated cPanel FTPS deployment is the active plan, with ephemeral same-run file backup, HTTPS health check and automatic file rollback on failure.
+- Provisioning, HTTPS, database/config readiness, authentication/session exchange, locally bundled Telegram bootstrap and exact-SHA staging deployment are operational.
+- Telegram Desktop and Android human acceptance are PASS, including light/dark, viewport/safe-area behavior, relaunch/session and Windows proxy-only bootstrap.
+- PR #39 merged as `33874d5e16f3f16f350057fe37fd2a87a36f71d9`; Telegram preserved the U+200E boundaries around the unchanged Persian menu label `ساخت فاکتور`.
+- iOS real-device acceptance is explicitly DEFERRED, NOT PASSED, to G08/pre-pilot because no device is available. It does not block G02 under the recorded owner decision.
+- Issue #2 is PASS / CLOSED. No unresolved critical/high security finding is recorded.
 
 ## Ordered gates
 
 1. #1 — G00: Product and architecture freeze — PASS / CLOSED
-2. #2 — G01: Telegram Mini App foundation and trusted authentication — ACTIVE
-3. #3 — G02: Animated RTL app shell and design system
+2. #2 — G01: Telegram Mini App foundation and trusted authentication — PASS / CLOSED (iOS deferred to G08)
+3. #3 — G02: Animated RTL app shell and design system — ACTIVE
 4. #4 — G03: Seller profile and configurable invoice settings
 5. #5 — G04: Deterministic invoice engine and draft workflow
 6. #6 — G05: Versioned template engine and first five templates
@@ -90,14 +95,4 @@ Before work, read in this order:
 
 ## Immediate next action
 
-Complete G01 staging provisioning only:
-1. create isolated `invoice-staging.box4u.co` subdomain/application root and assign PHP 8.2 only to it;
-2. create isolated staging DB + DB user;
-3. create a dedicated FTPS account jailed to the Mini App staging application root;
-4. add the four staging deployment secrets to GitHub Actions;
-5. create/move `deploy/staging` to the accepted `main` SHA so GitHub performs the direct deployment;
-6. create remote `server/.env`, apply initial migration, configure staging BotFather Mini App;
-7. execute Android/iOS/Desktop acceptance matrix;
-8. only then PASS/close G01 and advance to G02.
-
-Do not implement G02+ early.
+Complete G02 only: merge the tested RTL shell, deploy the exact accepted SHA to staging, then obtain the scoped Android visual acceptance. Real iOS testing remains mandatory in G08 before G09; simulated iPhone viewport coverage is not iOS acceptance.
