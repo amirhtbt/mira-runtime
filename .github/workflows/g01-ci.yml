@@ -121,12 +121,18 @@ jobs:
             exit 1
           fi
           grep -F '$_ENV[$key] = $value;' server/src/Support/Env.php >/dev/null
-      - name: Contained runtime must remain HTTP-denied
+      - name: Flat shared-host runtime must remain HTTP-denied
         run: |
-          grep -F 'runtime_dir="$release_dir/server/public/tinv-runtime"' scripts/prepare-shared-host-release.sh >/dev/null
-          grep -F 'runtime_remote="server/public/tinv-runtime"' scripts/deploy-ftps.sh >/dev/null
-          grep -F 'RewriteRule ^tinv-runtime(?:/|$) - [F,L]' server/public/.htaccess >/dev/null
-          grep -F 'RewriteRule ^tinv-runtime\.env$ - [F,L]' server/public/.htaccess >/dev/null
+          grep -F 'public_dir="$release_dir/server/public"' scripts/prepare-shared-host-release.sh >/dev/null
+          grep -F 'tinv-runtime-src-$flat.php' scripts/prepare-shared-host-release.sh >/dev/null
+          grep -F 'tinv-runtime-migration-$(basename "$migration_file")' scripts/prepare-shared-host-release.sh >/dev/null
+          grep -F "tinv-runtime-bootstrap.php" server/public/index.php >/dev/null
+          grep -F "tinv-runtime-runner.php" scripts/deploy-ftps.sh >/dev/null
+          grep -F 'RewriteRule ^tinv-runtime(?:$|/|\.|-) - [F,L]' server/public/.htaccess >/dev/null
+          if grep -F '/tinv-runtime/bootstrap.php' server/public/index.php scripts/deploy-ftps.sh; then
+            echo 'Nested runtime path must not return to shared-host deployment' >&2
+            exit 1
+          fi
       - name: Staging origin must remain noindex
         run: |
           grep -F 'invoice-staging\.box4u\.co' server/public/.htaccess >/dev/null
