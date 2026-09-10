@@ -21,7 +21,7 @@ for (const viewport of viewports) {
   }
 }
 
-test('keyboard navigation, safe-area variables and truly centered CTA', async ({ page }) => {
+test('keyboard navigation, safe-area variables and four equal RTL navigation slots', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?g02-preview=1');
   await page.evaluate(() => {
@@ -31,13 +31,18 @@ test('keyboard navigation, safe-area variables and truly centered CTA', async ({
   await page.keyboard.press('Tab');
   await expect(page.locator(':focus-visible')).toBeVisible();
 
-  const navigation = await page.locator('.bottom-nav').boundingBox();
-  const bubble = await page.locator('.nav-create > span').boundingBox();
-  expect(navigation && bubble).toBeTruthy();
-  if (navigation && bubble) {
-    const navigationCenter = navigation.x + navigation.width / 2;
-    const bubbleCenter = bubble.x + bubble.width / 2;
-    expect(Math.abs(navigationCenter - bubbleCenter)).toBeLessThanOrEqual(1);
+  const home = await page.getByRole('button', { name: 'خانه' }).boundingBox();
+  const create = await page.getByRole('button', { name: 'ساخت سند جدید' }).last().boundingBox();
+  const invoices = await page.getByRole('button', { name: 'فاکتورها' }).boundingBox();
+  const settings = await page.getByRole('button', { name: 'تنظیمات' }).boundingBox();
+  expect(home && create && invoices && settings).toBeTruthy();
+  if (home && create && invoices && settings) {
+    const center = (box: { x: number; width: number }) => box.x + box.width / 2;
+    expect(center(home)).toBeGreaterThan(center(create));
+    expect(center(create)).toBeGreaterThan(center(invoices));
+    expect(center(invoices)).toBeGreaterThan(center(settings));
+    const widths = [home.width, create.width, invoices.width, settings.width];
+    expect(Math.max(...widths) - Math.min(...widths)).toBeLessThanOrEqual(1);
   }
 
   await page.getByRole('button', { name: 'ساخت سند جدید' }).last().click();
