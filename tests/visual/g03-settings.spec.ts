@@ -31,7 +31,7 @@ for (const scenario of [
     await page.setViewportSize({ width: scenario.width, height: scenario.height });
     await page.goto(`/?g02-preview=1&theme=${scenario.theme}`);
     await page.getByRole('button', { name: 'تنظیمات' }).click();
-    await expect(page.getByRole('heading', { name: 'تنظیمات' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'تنظیمات', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'اطلاعاتی که روی سند دیده می‌شود' })).toBeVisible();
     await expect(page.getByLabel('نام کسب‌وکار')).toBeVisible();
     await expect(page.getByLabel('شماره کارت')).toBeVisible();
