@@ -32,7 +32,7 @@ $logo = new LogoService($pdo);
 Test::run('G03 safe defaults require no advanced setup', function () use ($service, $one): void {
     $result = $service->get($one->context->businessId);
     Test::equals(0, $result['version']);
-    Test::equals('تومان', $result['settings']['presentation']['currencyUnit'] === 'toman' ? 'تومان' : '');
+    Test::equals('toman', $result['settings']['presentation']['currencyUnit']);
     Test::equals('jalali', $result['settings']['document']['calendar']);
     Test::equals('persian', $result['settings']['document']['digits']);
     Test::equals('پیش‌فاکتور', $result['settings']['document']['proformaLabel']);
@@ -40,7 +40,7 @@ Test::run('G03 safe defaults require no advanced setup', function () use ($servi
     Test::equals(false, $result['settings']['financial']['taxEnabled']);
 });
 
-Test::run('G03 persists mixed Persian Latin seller payment and presentation settings', function () use ($service, $one, $now): void {
+Test::run('G03 persists mixed Persian Latin seller payment and presentation settings', function () use ($service, $one, $now, $pdo): void {
     $saved = $service->update($one->context->businessId, [
         'seller' => [
             'businessName' => 'فروشگاه Mira 24',
@@ -70,7 +70,7 @@ Test::run('G03 persists mixed Persian Latin seller payment and presentation sett
     Test::equals('IR111111111111111111111111', $saved['settings']['payment']['sheba']);
     Test::equals('rial', $saved['settings']['presentation']['currencyUnit']);
 
-    $reloaded = (new SettingsService(new SettingsRepository($GLOBALS['pdo'])))->get($one->context->businessId);
+    $reloaded = (new SettingsService(new SettingsRepository($pdo)))->get($one->context->businessId);
     Test::equals('فروشگاه Mira 24', $reloaded['settings']['seller']['businessName']);
     Test::equals('rial', $reloaded['settings']['presentation']['currencyUnit']);
 });
@@ -116,11 +116,13 @@ Test::run('G03 money settings remain presentation/config strings with no float c
 Test::run('G03 per-document override contract cannot override seller or payment identity', function () use ($service, $one): void {
     $global = $service->get($one->context->businessId)['settings'];
     $merged = SettingsSchema::mergeForDocument($global, [
-        'document' => ['proformaLabel' => 'پیشنهاد ویژه'],
-        'presentation' => ['digits' => 'latin'] ?? [],
+        'document' => ['proformaLabel' => 'پیشنهاد ویژه', 'digits' => 'latin'],
+        'presentation' => ['currencyUnit' => 'rial'],
         'text' => ['sellerNote' => 'مختص این سند'],
     ]);
     Test::equals('پیشنهاد ویژه', $merged['document']['proformaLabel']);
+    Test::equals('latin', $merged['document']['digits']);
+    Test::equals('rial', $merged['presentation']['currencyUnit']);
     Test::equals('مختص این سند', $merged['text']['sellerNote']);
     Test::equals($global['seller']['businessName'], $merged['seller']['businessName']);
     Test::throws(fn() => SettingsSchema::mergeForDocument($global, ['seller' => ['businessName' => 'tamper']]), SettingsValidationException::class, 'document_override_unknown_field');
