@@ -1,111 +1,23 @@
-# Template System
+# G05 Versioned Template System
 
-## Goal
+## Approved catalogue
 
-Allow the product team to design, add, preview, validate, version and deploy new invoice templates without changing invoice business logic.
+G05 ships six restrained-colour templates: Minimal, Luxury, Boutique, Modern Business, Bazaar, and Classic Business. Every template is versioned (`id@1`) and supports both `portrait` and `landscape`, for 12 selectable variants.
 
-## 1. Template architecture
+## Rendering contract
 
-Each template is a versioned package with:
-- stable template id
-- version
-- display name
-- supported capabilities
-- layout renderer
-- design tokens
-- optional user-editable accent controls
-- preview fixtures
-- print/PDF rules
-- image-export rules
+Templates consume one normalized, immutable `InvoiceViewModel`; they do not query storage, call APIs, or recalculate totals. All monetary fields are integer strings in Rial and all headings explicitly say «ریال». A template switch changes presentation only and can never change an authoritative amount.
 
-## 2. Normalized template data contract
+Every template conditionally accommodates every V1 field when defined: seller/logo/contact/legal data, customer/contact/legal data, document number/dates/order number, SKU/description/unit/quantity, line price/discount/tax/total, document discount/tax/shipping/service fee/custom adjustments/grand total, payment destination, notes/terms, footer, thanks, and signature/stamp areas. Undefined optional values produce neither blank labels nor empty blocks.
 
-Templates receive a normalized `InvoiceViewModel`, for example:
-- seller
-- customer
-- document metadata
-- item rows
-- adjustments
-- totals
-- payment details
-- notes/terms
-- locale/number/date settings
+For final invoices, installment and deposit history remains linked in the domain but is never included in the printable view model. That history is visible only on the source proforma inside the app.
 
-No template may run SQL or fetch arbitrary business data.
+## Versioning and historical output
 
-## 3. Capability declaration
+Template IDs are stable and versions are append-only. Issued document snapshots keep the selected ID/version. Existing issued Toman documents are preserved as historical records; G05 normalizes business defaults and creates all new documents in integer Rial.
 
-A template declares what it supports:
-- logo
-- seller address
-- card/sheba
-- SKU
-- item description
-- line discount
-- tax
-- custom adjustments
-- signature/stamp
-- accent color
-- compact mode
-- multiple pages
+## Acceptance fixtures
 
-The app hides unsupported controls or renders safe fallbacks.
+Every template/orientation combination passes the same fixtures: 1, 20, and 100 items; long Persian titles; mixed SKU; optional fields present/absent; discounts, tax, shipping, service fee and adjustments; payment destination; notes and signatures; large integer Rial values; and no occurrence of «تومان» in new output.
 
-## 4. Versioning
-
-Never modify a live template version in a way that changes historical output.
-
-Use:
-- `minimal-v1`
-- `minimal-v2`
-
-or stable ID + internal version.
-
-Existing invoice snapshots retain the version used at export time.
-
-## 5. V1 starter templates
-
-Target 5 excellent templates rather than 20 mediocre ones:
-1. Minimal Clean
-2. Luxury
-3. Fashion / Boutique
-4. Modern Business
-5. Bazaar / Commerce
-
-Each template must pass the same data stress tests.
-
-## 6. Template test fixtures
-
-Mandatory fixtures:
-- one short item
-- 20 items
-- 100 items stress case
-- very long Persian product name
-- mixed Persian/English SKU
-- zero discount
-- large discount
-- shipping + custom adjustment
-- no customer name
-- long notes
-- logo portrait/landscape/square
-- no logo
-- very large monetary values
-- Rial and Toman
-- Persian and Latin digits
-
-## 7. Template acceptance
-
-A new template cannot ship unless:
-- preview tests pass
-- totals are identical to engine totals
-- PDF/image export passes
-- multi-page overflow works
-- no clipped RTL text
-- mobile preview works
-- snapshot visual regression accepted
-- performance remains within budget
-
-## 8. Internal authoring
-
-V1 template addition is developer/product-team controlled through Git + CI.
-A user-facing template builder is explicitly deferred.
+PDF/image export and pagination mechanics are G06 scope; the renderer is export-ready but G05 does not claim those gates.

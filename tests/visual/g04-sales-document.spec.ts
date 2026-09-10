@@ -13,7 +13,7 @@ for (const scenario of [
     await page.getByLabel('نام مشتری').fill('مشتری نمونه');
     await page.getByLabel('شرح کالا یا خدمت').fill('سفارش کامل');
     await page.getByLabel('مبلغ کل').fill('10000000');
-    await expect(page.getByText('۱۰٬۰۰۰٬۰۰۰ تومان')).toBeVisible();
+    await expect(page.getByText('۱۰٬۰۰۰٬۰۰۰ ریال')).toBeVisible();
     await expect(page).toHaveScreenshot(`g04-${scenario.name}-draft.png`,{fullPage:true});
     await page.getByRole('button',{name:'ذخیره پیش‌نویس'}).click();
     await page.getByRole('button',{name:'صدور پیش‌فاکتور'}).click();

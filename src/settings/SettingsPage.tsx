@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from 'react';
 import { businessLogoUrl, deleteBusinessLogo, getBusinessSettings, updateBusinessSettings, uploadBusinessLogo } from '../api/client';
 import type { BusinessSettings, CustomAdjustmentDefault, SettingsResponse } from './types';
+import { TemplatePicker } from '../templates/TemplatePicker';
 
 interface Summary { businessName?: string; settingsComplete: boolean }
 interface Props { onSummaryChange?: (summary: Summary) => void }
@@ -20,6 +21,7 @@ function Field({ label, value, onChange, placeholder, dir, maxLength = 120, mult
 }
 
 function SelectField({ label, value, onChange, children }: { label: string; value: string; onChange: (value: string) => void; children: ReactNode }) {
+  if (label === 'واحد نمایشی') return <label className="settings-field"><span>واحد محاسبه و نمایش</span><select value="rial" disabled><option value="rial">ریال</option></select></label>;
   return <label className="settings-field"><span>{label}</span><select value={value} onChange={event => onChange(event.target.value)}>{children}</select></label>;
 }
 
@@ -43,7 +45,8 @@ export function SettingsPage({ onSummaryChange }: Props) {
       try {
         const next = await getBusinessSettings();
         if (cancelled) return;
-        setPayload(next); setDraft(clone(next.settings)); setState('ready');
+        const normalized = clone(next.settings); normalized.presentation.currencyUnit = 'rial';
+        setPayload(next); setDraft(normalized); setState('ready');
         const name = next.settings.seller.displayName || next.settings.seller.businessName || undefined;
         onSummaryChange?.({ businessName: name, settingsComplete: Boolean(name) });
       } catch {
@@ -118,6 +121,8 @@ export function SettingsPage({ onSummaryChange }: Props) {
     <details className="settings-section"><summary><span>متن‌ها و شرایط</span><small>یادداشت، شرایط پرداخت و footer</small></summary><div className="settings-section-body settings-grid two"><Field label="یادداشت فروشنده" value={s.text.sellerNote} onChange={sellerNote => patch('text', { sellerNote })} multiline maxLength={1200}/><Field label="شرایط پرداخت" value={s.text.paymentTerms} onChange={paymentTerms => patch('text', { paymentTerms })} multiline maxLength={2000}/><Field label="شرایط ارسال" value={s.text.shippingTerms} onChange={shippingTerms => patch('text', { shippingTerms })} multiline maxLength={2000}/><Field label="متن اعتبار" value={s.text.validityNotice} onChange={validityNotice => patch('text', { validityNotice })} multiline maxLength={600}/><Field label="متن تشکر" value={s.text.thankYou} onChange={thankYou => patch('text', { thankYou })} multiline maxLength={600}/><Field label="Footer" value={s.text.footer} onChange={footer => patch('text', { footer })} multiline maxLength={600}/></div></details>
 
     <details className="settings-section"><summary><span>ظاهر پیش‌فرض</span><small>قالب، رنگ و تراکم</small></summary><div className="settings-section-body settings-grid two"><SelectField label="قالب پیش‌فرض" value={s.visual.templateId} onChange={templateId => patch('visual', { templateId })}><option value="mira-classic">میرا کلاسیک</option></SelectField><label className="settings-field"><span>رنگ تأکیدی</span><input type="color" value={s.visual.accent} onChange={event => patch('visual', { accent: event.target.value })}/></label><SelectField label="نسخه سند" value={s.visual.invoiceVariant} onChange={value => patch('visual', { invoiceVariant: value as BusinessSettings['visual']['invoiceVariant'] })}><option value="auto">خودکار</option><option value="light">روشن</option><option value="dark">تیره</option></SelectField><SelectField label="جای لوگو" value={s.visual.logoPosition} onChange={value => patch('visual', { logoPosition: value as BusinessSettings['visual']['logoPosition'] })}><option value="start">ابتدا</option><option value="center">وسط</option><option value="end">انتها</option></SelectField><SelectField label="تراکم" value={s.visual.density} onChange={value => patch('visual', { density: value as BusinessSettings['visual']['density'] })}><option value="comfortable">راحت</option><option value="compact">فشرده</option></SelectField><SelectField label="اندازه متن" value={s.visual.fontSize} onChange={value => patch('visual', { fontSize: value as BusinessSettings['visual']['fontSize'] })}><option value="small">کوچک</option><option value="medium">معمولی</option><option value="large">بزرگ</option></SelectField></div></details>
+
+    <section className="settings-card template-settings"><div className="settings-card-heading"><div><span className="settings-kicker">قالب سند</span><h2>انتخاب و پیش‌نمایش</h2></div><span className="status-pill complete">۱۲ نسخه</span></div><p className="settings-muted">هر شش قالب، تمام اطلاعات تعریف‌شده را به‌صورت شرطی و فقط با واحد ریال نمایش می‌دهند.</p><TemplatePicker value={s.visual.templateId} onChange={templateId => patch('visual', { templateId })}/></section>
 
     {message && <div className={`settings-feedback${state === 'save-error' ? ' error' : ''}`} role={state === 'save-error' ? 'alert' : 'status'}>{message}</div>}
     <div className="settings-save-bar"><div><strong>تنظیمات کسب‌وکار</strong><small>نسخه {payload.version.toLocaleString('fa-IR')}</small></div><button type="button" className="primary-button" onClick={save} disabled={state === 'saving'}>{state === 'saving' ? 'در حال ذخیره…' : 'ذخیره تغییرات'}</button></div>

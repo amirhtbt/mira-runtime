@@ -51,7 +51,7 @@ describe('G03 SettingsPage', () => {
     fireEvent.change(screen.getByLabelText('شماره کارت'), { target: { value: '1111222233334444' } });
     const details = screen.getByText('نمایش مبلغ و اعداد').closest('details');
     if (details) fireEvent.click(details.querySelector('summary')!);
-    fireEvent.change(screen.getByLabelText('واحد نمایشی'), { target: { value: 'rial' } });
+    expect(screen.getByLabelText('واحد محاسبه و نمایش')).toHaveProperty('value', 'rial');
     fireEvent.click(screen.getByRole('button', { name: 'ذخیره تغییرات' }));
     await waitFor(() => expect(updateBusinessSettings).toHaveBeenCalledOnce());
     const saved = vi.mocked(updateBusinessSettings).mock.calls[0][0] as BusinessSettings;
