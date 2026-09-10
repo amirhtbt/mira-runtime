@@ -32,7 +32,7 @@ $logo = new LogoService($pdo);
 Test::run('G03 safe defaults require no advanced setup', function () use ($service, $one): void {
     $result = $service->get($one->context->businessId);
     Test::equals(0, $result['version']);
-    Test::equals('toman', $result['settings']['presentation']['currencyUnit']);
+    Test::equals('rial', $result['settings']['presentation']['currencyUnit']);
     Test::equals('jalali', $result['settings']['document']['calendar']);
     Test::equals('persian', $result['settings']['document']['digits']);
     Test::equals('پیش‌فاکتور', $result['settings']['document']['proformaLabel']);
@@ -100,7 +100,7 @@ Test::run('G03 business scope keeps tenant settings isolated', function () use (
 
 Test::run('G03 money settings remain presentation/config strings with no float conversion', function () use ($service, $one, $now): void {
     $saved = $service->update($one->context->businessId, [
-        'presentation' => ['currencyUnit' => 'toman'],
+        'presentation' => ['currencyUnit' => 'rial'],
         'financial' => [
             'discount' => ['kind' => 'fixed', 'amountBaseUnit' => '123456789012345', 'percentBasisPoints' => 0],
             'shippingAmountBaseUnit' => '250000',
@@ -110,7 +110,7 @@ Test::run('G03 money settings remain presentation/config strings with no float c
     ], $now + 4);
     Test::equals('123456789012345', $saved['settings']['financial']['discount']['amountBaseUnit']);
     Test::equals('250000', $saved['settings']['financial']['shippingAmountBaseUnit']);
-    Test::equals('toman', $saved['settings']['presentation']['currencyUnit']);
+    Test::equals('rial', $saved['settings']['presentation']['currencyUnit']);
 });
 
 Test::run('G03 per-document override contract cannot override seller or payment identity', function () use ($service, $one): void {

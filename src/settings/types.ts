@@ -1,3 +1,4 @@
+/** Legacy `toman` is readable for historical API snapshots; G05 creates only Rial documents. */
 export type CurrencyUnit = 'toman' | 'rial';
 export type DigitStyle = 'persian' | 'latin';
 export type CalendarStyle = 'jalali' | 'gregorian';

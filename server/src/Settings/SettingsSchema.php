@@ -43,7 +43,7 @@ final class SettingsSchema
                 'digits' => 'persian',
             ],
             'presentation' => [
-                'currencyUnit' => 'toman',
+                'currencyUnit' => 'rial',
                 'thousandsSeparator' => true,
                 'decimalPolicy' => 'none',
                 'roundTotal' => 'none',
@@ -82,7 +82,7 @@ final class SettingsSchema
                 'thankYou' => '',
             ],
             'visual' => [
-                'templateId' => 'mira-classic',
+                'templateId' => 'minimal',
                 'accent' => '#2f80ed',
                 'invoiceVariant' => 'auto',
                 'logoPosition' => 'start',
@@ -191,7 +191,7 @@ final class SettingsSchema
         self::assertAllowedKeys($patch, ['currencyUnit', 'thousandsSeparator', 'decimalPolicy', 'roundTotal'], 'presentation');
         foreach ($patch as $key => $value) {
             $base[$key] = match ($key) {
-                'currencyUnit' => self::enum($value, ['toman', 'rial'], 'presentation_currencyUnit'),
+                'currencyUnit' => self::enum($value, ['rial'], 'presentation_currencyUnit'),
                 'thousandsSeparator' => self::bool($value, 'presentation_thousandsSeparator'),
                 'decimalPolicy' => self::enum($value, ['none', 'auto'], 'presentation_decimalPolicy'),
                 'roundTotal' => self::enum($value, ['none', 'nearest10', 'nearest100', 'nearest1000'], 'presentation_roundTotal'),
@@ -260,7 +260,7 @@ final class SettingsSchema
         self::assertAllowedKeys($patch, ['templateId', 'accent', 'invoiceVariant', 'logoPosition', 'density', 'fontSize'], 'visual');
         foreach ($patch as $key => $value) {
             $base[$key] = match ($key) {
-                'templateId' => self::slug($value, 'visual_templateId'),
+                'templateId' => self::enum($value, ['minimal', 'luxury', 'boutique', 'modern-business', 'bazaar', 'classic-business'], 'visual_templateId'),
                 'accent' => self::accent($value),
                 'invoiceVariant' => self::enum($value, ['auto', 'light', 'dark'], 'visual_invoiceVariant'),
                 'logoPosition' => self::enum($value, ['start', 'center', 'end'], 'visual_logoPosition'),

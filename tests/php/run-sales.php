@@ -24,7 +24,7 @@ $now=1_800_020_000;
 $one=$auth->authenticateTelegram(TelegramFixture::user('902000001',$now-2,$config->telegramBotToken,'فروشنده G04'),$now);
 $two=$auth->authenticateTelegram(TelegramFixture::user('902000002',$now-2,$config->telegramBotToken,'Tenant Two'),$now);
 $settings=new SettingsService(new SettingsRepository($pdo));
-$settings->update($one->context->businessId,['seller'=>['businessName'=>'میرا اصلی'],'document'=>['proformaPrefix'=>'PF','invoicePrefix'=>'INV'],'presentation'=>['currencyUnit'=>'toman']],$now);
+$settings->update($one->context->businessId,['seller'=>['businessName'=>'میرا اصلی'],'document'=>['proformaPrefix'=>'PF','invoicePrefix'=>'INV'],'presentation'=>['currencyUnit'=>'rial']],$now);
 $service=new SalesDocumentService($pdo,new SettingsRepository($pdo));
 
 Test::run('G04 integer-only deterministic money calculation',function():void{

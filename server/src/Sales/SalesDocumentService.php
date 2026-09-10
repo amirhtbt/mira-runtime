@@ -31,7 +31,8 @@ final readonly class SalesDocumentService
         $settings = $this->settings->find($businessId)['settings'] ?? SettingsSchema::defaults();
         $overrides = $input['settingsOverrides'] ?? [];
         if (!is_array($overrides)) throw new SalesValidationException('settings_overrides_invalid');
-        $currency = (string) ($settings['presentation']['currencyUnit'] ?? 'toman');
+        // G05 contract: all authoritative amounts are integer Rial values.
+        $currency = 'rial';
         $now = gmdate('Y-m-d H:i:s'); $documentId = Uuid::v4();
         $this->pdo->beginTransaction();
         try {

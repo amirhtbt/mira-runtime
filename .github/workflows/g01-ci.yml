@@ -2,7 +2,7 @@ name: Quality CI
 
 on:
   push:
-    branches: [main, 'g01/**', 'g02/**', 'g03/**', 'g04/**']
+    branches: [main, 'g01/**', 'g02/**', 'g03/**', 'g04/**', 'g05/**']
   pull_request:
     branches: [main]
 
