@@ -78,16 +78,18 @@ Deliver:
 - live preview data model
 - invoice numbering
 - explicit pro-forma/invoice type with separate sequences
-- one-way idempotent pro-forma-to-invoice conversion link
-- invoice payments and derived unpaid/partial/paid/overpaid balance status
+- pro-forma deposits/installments and derived unpaid/partial/paid/overpaid progress
+- one-way idempotent final-invoice issuance only after exact full settlement
+- direct final-invoice path with explicit full-payment confirmation and no invented installments
 
 Tests:
 - full financial correctness matrix
 - 1/20/100 item tests
 - autosave/recovery
 - concurrency/idempotency where relevant
-- conversion snapshot/link integrity and payment-allocation correctness
-- pro-formas excluded from billed/paid/outstanding totals
+- settlement-gated conversion snapshot/link integrity and pro-forma payment-allocation correctness
+- final invoice omits installment breakdown while preserving the source audit history
+- converted sales are not double-counted
 
 ## G05 — Template Engine + First 5 Templates
 
@@ -130,7 +132,7 @@ Deliver:
 - duplicate
 - archive
 - optional lightweight customer/product save
-- per-customer document timeline, conversion links and invoice balance summary
+- per-customer document timeline, conversion links, pro-forma payment progress and final-invoice summary
 
 Tests:
 - ownership isolation

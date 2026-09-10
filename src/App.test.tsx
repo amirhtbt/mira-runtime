@@ -38,7 +38,7 @@ describe('G02 app shell', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'ساخت سند جدید' })[0]);
     expect(screen.getByRole('heading', { name: 'چه سندی می‌سازید؟' })).toBeTruthy();
     expect(screen.getByRole('button', { name: /پیشنهاد قیمت/ })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /ثبت مبلغ پرداخت‌شده/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /کامل پرداخت شده/ })).toBeTruthy();
     expect(telegram.haptic).toHaveBeenCalledWith('light');
     expect(telegram.setBackHandler).toHaveBeenCalledWith(expect.any(Function));
   });

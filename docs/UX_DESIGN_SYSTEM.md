@@ -30,7 +30,7 @@ Recommended V1 bottom navigation:
 Primary floating/central action:
 - `+ سند جدید`
 
-The next surface has only two choices: `پیش‌فاکتور` (default) and `فاکتور فروش`. Both reuse the same editor. An eligible pro-forma detail has one clear `تبدیل به فاکتور` action; payment controls appear only on invoice detail. Do not add separate creation modules or accounting-style navigation.
+The next surface has only two choices: `پیش‌فاکتور` (default) and `فاکتور فروش`. Both reuse the same editor. A pro-forma detail has one clear `ثبت پرداخت` action and its remaining amount. After exact full settlement, that action becomes `صدور فاکتور نهایی`. Installment details stay on the pro-forma and are not shown on the final invoice. Direct invoice creation requires a simple full-payment confirmation. Do not add separate creation modules or accounting-style navigation.
 
 Do not add tabs without validated usage.
 

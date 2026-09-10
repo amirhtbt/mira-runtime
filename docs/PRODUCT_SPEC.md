@@ -148,8 +148,10 @@ V1 states:
 - archived
 
 Type-specific rules:
-- a pro-forma can be converted once to a new linked invoice without mutating the source;
-- invoice payment state is derived from confirmed payments: unpaid / partial / paid / overpaid;
+- deposits/installments and remaining amount are recorded against the pro-forma;
+- a fully paid pro-forma can be converted once to a new linked final invoice without mutating the source;
+- the final invoice shows the total as settled and omits installment breakdown;
+- a direct final invoice is allowed for an already fully paid sale after explicit full-payment confirmation;
 - cancelled is an auditable document state, not a hard delete.
 
 No accounting ledger is implied.
@@ -164,10 +166,11 @@ The complete domain contract is in `docs/SALES_DOCUMENT_DOMAIN.md`.
 - open/preview
 - duplicate
 - convert an eligible pro-forma to an invoice
-- record payment amount/date/method against invoices
+- record payment amount/date/method against a pro-forma and show its remaining amount
+- issue the final invoice only after full payment; keep payment-stage details in the linked pro-forma
 - edit draft or clone finalized document
 - archive
-- show all linked documents and invoice balances for one saved customer
+- show all linked documents, pro-forma payments/remaining amounts and final invoices for one saved customer
 
 ## 8. Saved data
 
