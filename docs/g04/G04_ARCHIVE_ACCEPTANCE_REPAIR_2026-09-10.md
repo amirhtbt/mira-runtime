@@ -1,6 +1,6 @@
 # G04 Archive Acceptance Repair — 2026-09-10
 
-Status: IMPLEMENTED / VERIFICATION AND REDEPLOY PENDING
+Status: PASS / CLOSED
 
 ## Owner finding
 
@@ -22,4 +22,15 @@ Mira supports two normal entry paths:
 - Return stable customer display identity from the already tenant-scoped service.
 - Keep direct invoices distinct from converted invoices.
 
-G04 remains open. Exact PR/CI/deploy/smoke evidence will be appended after verified delivery, followed by renewed owner acceptance on Telegram Desktop and Android.
+## Delivery and acceptance evidence
+
+- Repair PR #51, exact head `95a7a33a7c35db1a79ccc92d222ba62063a1735f`.
+- PR Quality CI `34472613702`: PASS, including frontend archive regression, PHP/MySQL G04 archive/customer tests, deployment safety and secrets.
+- Merge `5b52d288dc6750ebc1ef90bf372a9d413800ff1e`; main CI `34472752526`: PASS.
+- Exact-SHA cPanel staging deploy `34472945059`: PASS.
+- Live health G04, unauthenticated API rejection, new asset hashes and staging noindex smoke: PASS.
+- Owner accepted the repaired workflow on 2026-09-10.
+
+The owner also approved the future G07 customer-centric history contract: default `مشتری‌ها` cards plus `همه اسناد`, search by stable customer/contact/document identity, per-customer chronological document/payment/conversion history and no converted-sale double counting. The full contract is recorded on Issue #8 and is intentionally not pulled into G05.
+
+G04 is PASS / CLOSED. G05 / Issue #6 is ACTIVE. Real iOS remains DEFERRED / NOT PASSED to G08 before G09.
