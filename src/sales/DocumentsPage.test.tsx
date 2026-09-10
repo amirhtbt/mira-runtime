@@ -1,0 +1,19 @@
+// @vitest-environment jsdom
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { DocumentsPage } from './DocumentsPage';
+import * as api from '../api/client';
+
+vi.spyOn(api,'listSalesDocuments').mockResolvedValue([
+  {id:'p1',customerId:'c1',customerName:'مشتری پیش‌فاکتور',documentType:'proforma',lifecycleStatus:'issued',settlementStatus:'partial',documentNumber:'PF-00001',sourceDocumentId:null,currencyUnit:'toman',subtotalBaseUnit:'10000000',discountBaseUnit:'0',surchargeBaseUnit:'0',grandTotalBaseUnit:'10000000',paidAmountBaseUnit:'3000000',remainingAmountBaseUnit:'7000000',version:3,items:[],payments:[],canIssueFinalInvoice:false},
+  {id:'i1',customerId:'c2',customerName:'مشتری فاکتور',documentType:'invoice',lifecycleStatus:'issued',settlementStatus:'paid',documentNumber:'INV-00001',sourceDocumentId:null,currencyUnit:'toman',subtotalBaseUnit:'2500000',discountBaseUnit:'0',surchargeBaseUnit:'0',grandTotalBaseUnit:'2500000',paidAmountBaseUnit:'2500000',remainingAmountBaseUnit:'0',version:2,items:[],canIssueFinalInvoice:false}
+]);
+
+describe('G04 document archive',()=>{
+  it('shows issued proformas and direct invoices and reopens the selected record',async()=>{
+    const open=vi.fn();render(<DocumentsPage onOpen={open}/>);
+    await waitFor(()=>expect(screen.getByText('مشتری پیش‌فاکتور')).toBeTruthy());
+    expect(screen.getByText('مشتری فاکتور')).toBeTruthy(); expect(screen.getByText(/مانده ۷٬۰۰۰٬۰۰۰/)).toBeTruthy();
+    fireEvent.click(screen.getByText('مشتری پیش‌فاکتور')); expect(open).toHaveBeenCalledWith(expect.objectContaining({id:'p1',documentType:'proforma'}));
+  });
+});

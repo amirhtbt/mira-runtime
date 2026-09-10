@@ -5,6 +5,7 @@ import './styles.css';
 import './g02-android-navigation.css';
 import './g03-settings.css';
 import './g04-sales.css';
+import './g04-documents.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

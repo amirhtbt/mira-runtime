@@ -8,7 +8,7 @@ Default branch: `main`
 
 **G04 — Deterministic sales-document engine and draft workflow**
 GitHub Issue: #5
-State: ACTIVE — IMPLEMENTED / DEPLOYED / AWAITING OWNER ACCEPTANCE. PR #49 and staging are verified; G04 remains open until the owner completes the real Telegram Desktop/Android acceptance scenario.
+State: ACTIVE — ACCEPTANCE REPAIR IN PROGRESS. Owner testing found that issued pro-formas were persisted by the backend but the `فاکتورها` screen still rendered its empty G02 placeholder. G04 remains open while the archive is connected to stored documents, records can be reopened for payment/conversion, and the repair is redeployed and re-accepted.
 
 G00 / Issue #1, G01 / Issue #2, G02 / Issue #3 and G03 / Issue #4 are accepted and must not be reopened unless a regression, new platform constraint or explicit owner decision is documented.
 
