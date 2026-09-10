@@ -2,7 +2,7 @@ name: Quality CI
 
 on:
   push:
-    branches: [main, 'g01/**', 'g02/**']
+    branches: [main, 'g01/**', 'g02/**', 'g03/**']
   pull_request:
     branches: [main]
 
@@ -65,15 +65,17 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
-          extensions: mbstring, pdo_mysql
+          extensions: mbstring, pdo_mysql, fileinfo
       - name: PHP syntax check
         run: find server tests/php -name '*.php' -print0 | xargs -0 -n1 php -l
       - name: Unit security tests
         run: php tests/php/run-unit.php
-      - name: Apply G01 migrations
+      - name: Apply versioned migrations
         run: php server/bin/migrate.php
       - name: DB-backed auth/session integration tests
         run: php tests/php/run-integration.php
+      - name: G03 settings persistence and security tests
+        run: php tests/php/run-settings.php
 
   deployment-safety:
     runs-on: ubuntu-latest
@@ -155,6 +157,13 @@ jobs:
           fi
           grep -F '"@tma.js/sdk": "3.3.0"' package.json >/dev/null
           grep -F "script-src 'self'" index.html server/public/.htaccess >/dev/null
+      - name: G03 settings authorization and raster upload guards stay present
+        run: |
+          grep -F '$context = $sessionContext();' server/public/index.php >/dev/null
+          grep -F 'SettingsSchema::mergeForDocument' server/src/Settings/DocumentSettingsSnapshot.php >/dev/null
+          grep -F "['image/png', 'image/jpeg', 'image/webp']" server/src/Settings/LogoService.php >/dev/null
+          grep -F 'FILEINFO_MIME_TYPE' server/src/Settings/LogoService.php >/dev/null
+          grep -F 'MAX_BYTES' server/src/Settings/LogoService.php >/dev/null
 
   secrets:
     runs-on: ubuntu-latest
