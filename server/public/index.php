@@ -15,6 +15,8 @@ use Tinv\Http\Json;
 use Tinv\Http\OriginGuard;
 use Tinv\Session\SessionContext;
 use Tinv\Session\SessionService;
+use Tinv\Sales\SalesDocumentService;
+use Tinv\Sales\SalesValidationException;
 use Tinv\Settings\LogoService;
 use Tinv\Settings\LogoValidationException;
 use Tinv\Settings\SettingsRepository;
@@ -30,7 +32,7 @@ $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 
 if ($method === 'GET' && $path === '/api/v1/health') {
-    Json::ok(['service' => 'telegram-invoice-api', 'gate' => 'G03']);
+    Json::ok(['service' => 'telegram-invoice-api', 'gate' => 'G04']);
 }
 
 try {
@@ -44,6 +46,7 @@ try {
         $config->sessionTouchIntervalSeconds
     );
     $settingsService = new SettingsService(new SettingsRepository($pdo));
+    $salesService = new SalesDocumentService($pdo, new SettingsRepository($pdo));
     $logoService = new LogoService($pdo);
     $originGuard = new OriginGuard($config->appOrigin);
     $cookieName = $config->isProductionLike() ? '__Host-tinv_session' : 'tinv_session';
@@ -164,6 +167,38 @@ try {
         Json::ok(['logo' => $logoService->metadata($context->businessId)]);
     }
 
+    if ($method === 'GET' && $path === '/api/v1/documents') {
+        $context = $sessionContext();
+        header('Cache-Control: private, no-store');
+        Json::ok(['documents' => $salesService->list($context->businessId)]);
+    }
+
+    if ($method === 'POST' && $path === '/api/v1/documents') {
+        $context = $sessionContext();
+        Json::ok($salesService->createDraft($context->businessId, Json::body()), 201);
+    }
+
+    if (preg_match('#^/api/v1/documents/([0-9a-f-]{36})$#', $path, $match)) {
+        $context = $sessionContext();
+        if ($method === 'GET') Json::ok($salesService->get($context->businessId, $match[1]));
+        if ($method === 'PUT') Json::ok($salesService->updateDraft($context->businessId, $match[1], Json::body()));
+    }
+
+    if ($method === 'POST' && preg_match('#^/api/v1/documents/([0-9a-f-]{36})/finalize$#', $path, $match)) {
+        $context = $sessionContext(); $body = Json::body();
+        Json::ok($salesService->finalize($context->businessId, $match[1], ($body['paidConfirmed'] ?? false) === true));
+    }
+
+    if ($method === 'POST' && preg_match('#^/api/v1/documents/([0-9a-f-]{36})/payments$#', $path, $match)) {
+        $context = $sessionContext();
+        Json::ok($salesService->recordPayment($context->businessId, $match[1], Json::body()), 201);
+    }
+
+    if ($method === 'POST' && preg_match('#^/api/v1/documents/([0-9a-f-]{36})/final-invoice$#', $path, $match)) {
+        $context = $sessionContext();
+        Json::ok($salesService->convert($context->businessId, $match[1]), 201);
+    }
+
     Json::error('not_found', 'Route not found', 404);
 } catch (ValidationException $exception) {
     Json::error('telegram_' . $exception->reason, 'Telegram authentication rejected', 401);
@@ -173,6 +208,8 @@ try {
     Json::error('settings_invalid', $exception->reason, 422);
 } catch (LogoValidationException $exception) {
     Json::error('logo_invalid', $exception->reason, 422);
+} catch (SalesValidationException $exception) {
+    Json::error('sales_invalid', $exception->reason, $exception->httpStatus);
 } catch (\JsonException) {
     Json::error('invalid_json', 'Invalid JSON request body', 400);
 } catch (\RuntimeException $exception) {
