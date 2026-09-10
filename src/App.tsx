@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { authenticateWithTelegram, getSession, type SessionUser } from './api/client';
+import { SettingsPage } from './settings/SettingsPage';
 import { applyRuntimeCssVariables, TelegramAdapter, type TelegramRuntimeSnapshot } from './telegram/adapter';
 import { shouldReduceMotion } from './motion';
 
@@ -40,19 +41,33 @@ function Home({ data, onCreate }: { data: HomeData; onCreate: () => void }) {
 }
 
 function Invoices() { return <div className="page"><header className="page-header"><span>آرشیو شما</span><h1>فاکتورها</h1><p>همه فاکتورها و پیش‌فاکتورهای شما اینجا نمایش داده می‌شوند.</p></header><EmptyInvoices /></div>; }
-function Settings() { return <div className="page"><header className="page-header"><span>شخصی‌سازی</span><h1>تنظیمات</h1><p>ظاهر و اطلاعات کسب‌وکار را برای فاکتورهای بعدی آماده کنید.</p></header><section className="settings-card"><span className="business-icon"><Icon name="store" /></span><div><h2>پروفایل کسب‌وکار</h2><p>در گام بعدی قابل تنظیم خواهد بود.</p></div><span className="status-pill">تکمیل نشده</span></section></div>; }
+
+function Settings({ onSummaryChange }: { onSummaryChange: (summary: { businessName?: string; settingsComplete: boolean }) => void }) {
+  return <div className="page settings-shell"><header className="page-header"><span>شخصی‌سازی</span><h1>تنظیمات</h1><p>اطلاعات کسب‌وکار و پیش‌فرض‌های سند را یک‌بار تنظیم کنید.</p></header><SettingsPage onSummaryChange={onSummaryChange} /></div>;
+}
 
 export function AppShell({ telegram, runtime, data = emptyHome }: { telegram: TelegramAdapter; runtime: TelegramRuntimeSnapshot; data?: HomeData }) {
-  const [tab, setTab] = useState<AppTab>('home'); const [createIntent, setCreateIntent] = useState(false);
+  const [tab, setTab] = useState<AppTab>('home');
+  const [createIntent, setCreateIntent] = useState(false);
+  const [homeData, setHomeData] = useState<HomeData>(data);
+  useEffect(() => setHomeData(data), [data]);
   useEffect(() => { telegram.setBackHandler(tab !== 'home' || createIntent ? () => { setCreateIntent(false); setTab('home'); } : null); return () => telegram.setBackHandler(null); }, [createIntent, tab, telegram]);
+  const updateSettingsSummary = useCallback((summary: { businessName?: string; settingsComplete: boolean }) => {
+    setHomeData(current => ({ ...current, ...summary }));
+  }, []);
   function chooseTab(next: AppTab) { setCreateIntent(false); setTab(next); telegram.haptic('selection'); }
   function startCreate() { setCreateIntent(true); telegram.haptic('light'); }
-  return <main className="app-shell" data-theme={runtime.colorScheme} data-platform={runtime.platform}><div className="app-frame"><div className="topbar"><div className="brand"><span className="brand-mark"><Icon name="spark" /></span><span><strong>میرا</strong><small>فاکتورساز تلگرام</small></span></div><span className="secure-chip"><span/>امن</span></div><div className="content" key={createIntent ? 'create' : tab}>{createIntent ? <div className="page create-placeholder"><span className="create-mark"><Icon name="invoice" /></span><h1>چه سندی می‌سازید؟</h1><p>هر دو گزینه ظاهر و مسیر ساخت یکسانی دارند.</p><div className="document-type-options"><button type="button" className="document-type-card"><strong>پیش‌فاکتور</strong><span>پیشنهاد قیمت؛ قابل تبدیل به فاکتور</span></button><button type="button" className="document-type-card"><strong>فاکتور فروش</strong><span>برای سفارشی که کامل پرداخت شده</span></button></div><button className="secondary-button" onClick={() => setCreateIntent(false)}>بازگشت به خانه</button></div> : tab === 'home' ? <Home data={data} onCreate={startCreate} /> : tab === 'invoices' ? <Invoices /> : <Settings />}</div>
+  return <main className="app-shell" data-theme={runtime.colorScheme} data-platform={runtime.platform}><div className="app-frame"><div className="topbar"><div className="brand"><span className="brand-mark"><Icon name="spark" /></span><span><strong>میرا</strong><small>فاکتورساز تلگرام</small></span></div><span className="secure-chip"><span/>امن</span></div><div className="content" key={createIntent ? 'create' : tab}>{createIntent ? <div className="page create-placeholder"><span className="create-mark"><Icon name="invoice" /></span><h1>چه سندی می‌سازید؟</h1><p>هر دو گزینه ظاهر و مسیر ساخت یکسانی دارند.</p><div className="document-type-options"><button type="button" className="document-type-card"><strong>پیش‌فاکتور</strong><span>پیشنهاد قیمت؛ قابل تبدیل به فاکتور</span></button><button type="button" className="document-type-card"><strong>فاکتور فروش</strong><span>برای سفارشی که کامل پرداخت شده</span></button></div><button className="secondary-button" onClick={() => setCreateIntent(false)}>بازگشت به خانه</button></div> : tab === 'home' ? <Home data={homeData} onCreate={startCreate} /> : tab === 'invoices' ? <Invoices /> : <Settings onSummaryChange={updateSettingsSummary} />}</div>
     <nav className="bottom-nav" aria-label="ناوبری اصلی"><button className={tab === 'home' && !createIntent ? 'active' : ''} aria-current={tab === 'home' && !createIntent ? 'page' : undefined} onClick={() => chooseTab('home')}><Icon name="home" /><span>خانه</span></button><button className={tab === 'invoices' && !createIntent ? 'active' : ''} aria-current={tab === 'invoices' && !createIntent ? 'page' : undefined} onClick={() => chooseTab('invoices')}><Icon name="invoice" /><span>فاکتورها</span></button><button className={`nav-create${createIntent ? ' active' : ''}`} aria-label="ساخت سند جدید" aria-current={createIntent ? 'page' : undefined} onClick={startCreate}><span><Icon name="plus" /></span><b>سند جدید</b></button><button className={tab === 'settings' && !createIntent ? 'active' : ''} aria-current={tab === 'settings' && !createIntent ? 'page' : undefined} onClick={() => chooseTab('settings')}><Icon name="settings" /><span>تنظیمات</span></button></nav></div></main>;
 }
 
 export default function App() {
-  const telegram = useMemo(() => new TelegramAdapter(), []); const [runtime, setRuntime] = useState<TelegramRuntimeSnapshot>(() => telegram.snapshot()); const [session, setSession] = useState<SessionUser | null>(null); const [state, setState] = useState<ShellState>('loading'); const [error, setError] = useState(''); const [attempt, setAttempt] = useState(0);
+  const telegram = useMemo(() => new TelegramAdapter(), []);
+  const [runtime, setRuntime] = useState<TelegramRuntimeSnapshot>(() => telegram.snapshot());
+  const [session, setSession] = useState<SessionUser | null>(null);
+  const [state, setState] = useState<ShellState>('loading');
+  const [error, setError] = useState('');
+  const [attempt, setAttempt] = useState(0);
   const preview = import.meta.env.DEV && new URLSearchParams(window.location.search).has('g02-preview');
   useEffect(() => { document.documentElement.dataset.motion = shouldReduceMotion() ? 'reduced' : 'full'; telegram.ready(); telegram.expand(); const update = () => { const next = telegram.snapshot(); applyRuntimeCssVariables(next); setRuntime(next); }; update(); const unsubscribe = telegram.onRuntimeChange(update); return unsubscribe; }, [telegram]);
   useEffect(() => { let cancelled = false; async function bootstrap() { if (preview) return; setState('loading'); setError(''); if (!navigator.onLine) { setState('offline'); return; } try { const existing = await getSession(); if (cancelled) return; if (existing) { setSession(existing); setState('ready'); return; } const initData = telegram.getInitData(); if (!initData) throw new Error('این صفحه را از دکمهٔ منوی ربات تلگرام باز کنید.'); const authenticated = await authenticateWithTelegram(initData); if (cancelled) return; setSession(authenticated); setState('ready'); telegram.haptic('success'); } catch (reason) { if (cancelled) return; setError(reason instanceof Error ? reason.message : 'خطای ناشناخته در برقراری نشست امن'); setState('error'); } } void bootstrap(); return () => { cancelled = true; }; }, [attempt, preview, telegram]);

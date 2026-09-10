@@ -63,17 +63,18 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
-          extensions: mbstring, pdo_mysql
+          extensions: mbstring, pdo_mysql, fileinfo
 
       - name: Backend syntax and security tests
         run: |
           find server tests/php -name '*.php' -print0 | xargs -0 -n1 php -l
           php tests/php/run-unit.php
 
-      - name: DB-backed auth/session integration tests
+      - name: DB-backed integration and G03 settings tests
         run: |
           php server/bin/migrate.php
           php tests/php/run-integration.php
+          php tests/php/run-settings.php
 
       - name: Prepare shared-host release without artifact retention
         run: bash scripts/prepare-shared-host-release.sh
