@@ -3,21 +3,23 @@ import { authenticateWithTelegram, getSession, type SessionUser } from './api/cl
 import { SettingsPage } from './settings/SettingsPage';
 import { SalesDocumentPage } from './sales/SalesDocumentPage';
 import { DocumentsPage } from './sales/DocumentsPage';
+import { TemplatesPage } from './templates/TemplatesPage';
 import type { DocumentType, SalesDocument } from './api/client';
 import { applyRuntimeCssVariables, TelegramAdapter, type TelegramRuntimeSnapshot } from './telegram/adapter';
 import { shouldReduceMotion } from './motion';
 
-export type AppTab = 'home' | 'invoices' | 'settings';
+export type AppTab = 'home' | 'invoices' | 'settings' | 'templates';
 export type ShellState = 'loading' | 'ready' | 'offline' | 'error';
 export interface RecentInvoice { id: string; customer: string; amount: string; date: string; status: 'draft' | 'final' }
 export interface HomeData { recentInvoices: RecentInvoice[]; businessName?: string; settingsComplete: boolean }
 const emptyHome: HomeData = { recentInvoices: [], settingsComplete: false };
 
-function Icon({ name }: { name: 'home' | 'invoice' | 'settings' | 'plus' | 'spark' | 'store' | 'arrow' | 'retry' }) {
+function Icon({ name }: { name: 'home' | 'invoice' | 'settings' | 'templates' | 'plus' | 'spark' | 'store' | 'arrow' | 'retry' }) {
   const paths = {
     home: <><path d="M3 10.8 12 3l9 7.8"/><path d="M5.5 9.5v10h13v-10M9.5 19.5v-6h5v6"/></>,
     invoice: <><path d="M6 3.5h12v17l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></>,
     settings: <><circle cx="12" cy="12" r="3"/><path d="M19 15a2 2 0 0 0 .4 2l-2.5 2.5a2 2 0 0 0-2-.4 2 2 0 0 0-1.3 1.6h-3.4A2 2 0 0 0 9 19a2 2 0 0 0-2 .4L4.6 17a2 2 0 0 0 .4-2 2 2 0 0 0-1.7-1.3v-3.4A2 2 0 0 0 5 9a2 2 0 0 0-.4-2L7 4.6A2 2 0 0 0 9 5a2 2 0 0 0 1.3-1.7h3.4A2 2 0 0 0 15 5a2 2 0 0 0 2-.4L19.4 7a2 2 0 0 0-.4 2 2 2 0 0 0 1.7 1.3v3.4A2 2 0 0 0 19 15z"/></>,
+    templates: <><rect x="3.5" y="4" width="17" height="16" rx="2"/><path d="M3.5 9h17M9 9v11"/></>,
     plus: <path d="M12 5v14M5 12h14"/>,
     spark: <><path d="m12 2 1.4 5.2L18 10l-4.6 2.8L12 18l-1.4-5.2L6 10l4.6-2.8z"/><path d="m19 16 .6 2.1 1.9 1.1-1.9 1.1L19 22l-.6-1.7-1.9-1.1 1.9-1.1z"/></>,
     store: <><path d="M4 9h16l-1.5-5h-13zM5 9v11h14V9"/><path d="M9 20v-6h6v6"/></>,
@@ -62,8 +64,8 @@ export function AppShell({ telegram, runtime, data = emptyHome, preview = false 
   function startCreate() { setCreateIntent(true); setDocumentType(null); setDocumentId(null); telegram.haptic('light'); }
   function openDocument(doc:SalesDocument){setDocumentType(doc.documentType);setDocumentId(doc.id);setCreateIntent(true);telegram.haptic('selection');}
   const createContent = documentType ? <SalesDocumentPage type={documentType} documentId={documentId} preview={preview} onBack={() => {setDocumentType(null);setDocumentId(null);if(documentId){setCreateIntent(false);setTab('invoices');}}} /> : <div className="page create-placeholder"><span className="create-mark"><Icon name="invoice" /></span><h1>چه سندی می‌سازید؟</h1><p>هر دو گزینه ظاهر و مسیر ساخت یکسانی دارند.</p><div className="document-type-options"><button type="button" className="document-type-card" onClick={() => setDocumentType('proforma')}><strong>پیش‌فاکتور</strong><span>پیشنهاد قیمت؛ قابل تبدیل به فاکتور</span></button><button type="button" className="document-type-card" onClick={() => setDocumentType('invoice')}><strong>فاکتور فروش</strong><span>برای سفارشی که کامل پرداخت شده</span></button></div><button className="secondary-button" onClick={() => setCreateIntent(false)}>بازگشت به خانه</button></div>;
-  return <main className="app-shell" data-theme={runtime.colorScheme} data-platform={runtime.platform}><div className="app-frame"><div className="topbar"><div className="brand"><span className="brand-mark"><Icon name="spark" /></span><span><strong>میرا</strong><small>فاکتورساز تلگرام</small></span></div><span className="secure-chip"><span/>امن</span></div><div className="content" key={createIntent ? `create-${documentType??'type'}-${documentId??'new'}` : tab}>{createIntent ? createContent : tab === 'home' ? <Home data={homeData} onCreate={startCreate} /> : tab === 'invoices' ? <DocumentsPage preview={preview} onOpen={openDocument} /> : <Settings onSummaryChange={updateSettingsSummary} />}</div>
-    <nav className="bottom-nav" aria-label="ناوبری اصلی"><button className={tab === 'home' && !createIntent ? 'active' : ''} aria-current={tab === 'home' && !createIntent ? 'page' : undefined} onClick={() => chooseTab('home')}><Icon name="home" /><span>خانه</span></button><button className={tab === 'invoices' && !createIntent ? 'active' : ''} aria-current={tab === 'invoices' && !createIntent ? 'page' : undefined} onClick={() => chooseTab('invoices')}><Icon name="invoice" /><span>فاکتورها</span></button><button className={`nav-create${createIntent ? ' active' : ''}`} aria-label="ساخت سند جدید" aria-current={createIntent ? 'page' : undefined} onClick={startCreate}><span><Icon name="plus" /></span><b>سند جدید</b></button><button className={tab === 'settings' && !createIntent ? 'active' : ''} aria-current={tab === 'settings' && !createIntent ? 'page' : undefined} onClick={() => chooseTab('settings')}><Icon name="settings" /><span>تنظیمات</span></button></nav></div></main>;
+  return <main className="app-shell" data-theme={runtime.colorScheme} data-platform={runtime.platform}><div className="app-frame"><div className="topbar"><div className="brand"><span className="brand-mark"><Icon name="spark" /></span><span><strong>میرا</strong><small>فاکتورساز تلگرام</small></span></div><span className="secure-chip"><span/>امن</span></div><div className="content" key={createIntent ? `create-${documentType??'type'}-${documentId??'new'}` : tab}>{createIntent ? createContent : tab === 'home' ? <Home data={homeData} onCreate={startCreate} /> : tab === 'invoices' ? <DocumentsPage preview={preview} onOpen={openDocument} /> : tab === 'templates' ? <TemplatesPage preview={preview} /> : <Settings onSummaryChange={updateSettingsSummary} />}</div>
+    <nav className="bottom-nav" aria-label="ناوبری اصلی"><button className={tab === 'home' && !createIntent ? 'active' : ''} aria-current={tab === 'home' && !createIntent ? 'page' : undefined} onClick={() => chooseTab('home')}><Icon name="home" /><span>خانه</span></button><button className={tab === 'invoices' && !createIntent ? 'active' : ''} aria-current={tab === 'invoices' && !createIntent ? 'page' : undefined} onClick={() => chooseTab('invoices')}><Icon name="invoice" /><span>فاکتورها</span></button><button className={`nav-create${createIntent ? ' active' : ''}`} aria-label="ساخت سند جدید" aria-current={createIntent ? 'page' : undefined} onClick={startCreate}><span><Icon name="plus" /></span><b>سند جدید</b></button><button className={tab === 'settings' && !createIntent ? 'active' : ''} aria-current={tab === 'settings' && !createIntent ? 'page' : undefined} onClick={() => chooseTab('settings')}><Icon name="settings" /><span>تنظیمات</span></button><button className={tab === 'templates' && !createIntent ? 'active' : ''} aria-current={tab === 'templates' && !createIntent ? 'page' : undefined} onClick={() => chooseTab('templates')}><Icon name="templates" /><span>قالب‌ها</span></button></nav></div></main>;
 }
 
 export default function App() {

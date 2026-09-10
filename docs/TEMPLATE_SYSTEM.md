@@ -1,23 +1,29 @@
-# G05 Versioned Template System
+# G05 Template System
 
 ## Approved catalogue
 
-G05 ships six restrained-colour templates: Minimal, Luxury, Boutique, Modern Business, Bazaar, and Classic Business. Every template is versioned (`id@1`) and supports both `portrait` and `landscape`, for 12 selectable variants.
+The V1 catalogue has three genuinely different structures: `minimal`, `modern-business`, and `classic-business`. Every template is A4 landscape (297×210 mm). Portrait and the former colour-only catalogue entries are removed.
+
+Layout and colour are independent choices. The Templates tab offers four restrained presets plus a custom accent. Changing colour never changes structure, data or authoritative totals.
+
+## Product surface
+
+`قالب‌ها` is the fifth bottom-navigation destination and the first visible button from the left in RTL. It is the only place to select the active template/theme. Settings no longer contains a default-template selector or template preview.
+
+The catalogue uses organised cards with real thumbnails and an explicit active state. A separate preview area provides fit/zoom controls. Full preview opens in a dedicated dialog, with template explanation beside the sheet and never over it.
+
+## Persistence and issuance
+
+The active `visual.templateId` and accent are persisted through business settings. Finalization stores the settings in the immutable document snapshot, so all subsequently issued documents use the active choice while historical issued output remains reproducible. Migration 006 maps removed editable defaults to the nearest retained layout without modifying issued snapshots.
 
 ## Rendering contract
 
-Templates consume one normalized, immutable `InvoiceViewModel`; they do not query storage, call APIs, or recalculate totals. All monetary fields are integer strings in Rial and all headings explicitly say «ریال». A template switch changes presentation only and can never change an authoritative amount.
+Templates consume one normalized immutable `InvoiceViewModel`; they never query storage or calculate totals. All money is an integer Rial string. All three layouts conditionally support every defined V1 seller, customer, document, item, financial, payment-destination, note, footer and signature field. Undefined optional values produce no labels or reserved blank blocks.
 
-Every template conditionally accommodates every V1 field when defined: seller/logo/contact/legal data, customer/contact/legal data, document number/dates/order number, SKU/description/unit/quantity, line price/discount/tax/total, document discount/tax/shipping/service fee/custom adjustments/grand total, payment destination, notes/terms, footer, thanks, and signature/stamp areas. Undefined optional values produce neither blank labels nor empty blocks.
+Pro-forma deposit/installment history remains linked in the application. Final invoice output excludes that breakdown.
 
-For final invoices, installment and deposit history remains linked in the domain but is never included in the printable view model. That history is visible only on the source proforma inside the app.
+## Acceptance
 
-## Versioning and historical output
+Required automated coverage includes the exact three-entry registry, landscape-only output, structural distinction, active-choice persistence, theme independence, conditional fields, 1/20/100-row fixtures, Rial-only rendering, five-slot RTL navigation, zoom/full-preview operation and no page-level mobile overflow.
 
-Template IDs are stable and versions are append-only. Issued document snapshots keep the selected ID/version. Existing issued Toman documents are preserved as historical records; G05 normalizes business defaults and creates all new documents in integer Rial.
-
-## Acceptance fixtures
-
-Every template/orientation combination passes the same fixtures: 1, 20, and 100 items; long Persian titles; mixed SKU; optional fields present/absent; discounts, tax, shipping, service fee and adjustments; payment destination; notes and signatures; large integer Rial values; and no occurrence of «تومان» in new output.
-
-PDF/image export and pagination mechanics are G06 scope; the renderer is export-ready but G05 does not claim those gates.
+PDF/image generation and export pagination remain G06 scope.
