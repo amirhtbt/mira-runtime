@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { authenticateWithTelegram, getSession, type SessionUser } from './api/client';
 import { SettingsPage } from './settings/SettingsPage';
 import { SalesDocumentPage } from './sales/SalesDocumentPage';
-import type { DocumentType } from './api/client';
+import { DocumentsPage } from './sales/DocumentsPage';
+import type { DocumentType, SalesDocument } from './api/client';
 import { applyRuntimeCssVariables, TelegramAdapter, type TelegramRuntimeSnapshot } from './telegram/adapter';
 import { shouldReduceMotion } from './motion';
 
@@ -42,8 +43,6 @@ function Home({ data, onCreate }: { data: HomeData; onCreate: () => void }) {
     <section className="business-card" aria-label="وضعیت کسب‌وکار"><span className="business-icon"><Icon name="store" /></span><div><h2>{data.businessName || 'مشخصات کسب‌وکار'}</h2><p>{data.settingsComplete ? 'اطلاعات پایه آماده است' : 'بعداً نام و اطلاعات فروشگاه را تکمیل کنید'}</p></div><span className={`status-pill ${data.settingsComplete ? 'complete' : ''}`}>{data.settingsComplete ? 'آماده' : 'تکمیل نشده'}</span></section></div>;
 }
 
-function Invoices() { return <div className="page"><header className="page-header"><span>آرشیو شما</span><h1>فاکتورها</h1><p>همه فاکتورها و پیش‌فاکتورهای شما اینجا نمایش داده می‌شوند.</p></header><EmptyInvoices /></div>; }
-
 function Settings({ onSummaryChange }: { onSummaryChange: (summary: { businessName?: string; settingsComplete: boolean }) => void }) {
   return <div className="page settings-shell"><header className="page-header"><span>شخصی‌سازی</span><h1>تنظیمات</h1><p>اطلاعات کسب‌وکار و پیش‌فرض‌های سند را یک‌بار تنظیم کنید.</p></header><SettingsPage onSummaryChange={onSummaryChange} /></div>;
 }
@@ -52,16 +51,18 @@ export function AppShell({ telegram, runtime, data = emptyHome, preview = false 
   const [tab, setTab] = useState<AppTab>('home');
   const [createIntent, setCreateIntent] = useState(false);
   const [documentType, setDocumentType] = useState<DocumentType | null>(null);
+  const [documentId, setDocumentId] = useState<string | null>(null);
   const [homeData, setHomeData] = useState<HomeData>(data);
   useEffect(() => setHomeData(data), [data]);
-  useEffect(() => { telegram.setBackHandler(tab !== 'home' || createIntent ? () => { if (documentType) setDocumentType(null); else { setCreateIntent(false); setTab('home'); } } : null); return () => telegram.setBackHandler(null); }, [createIntent, documentType, tab, telegram]);
+  useEffect(() => { telegram.setBackHandler(tab !== 'home' || createIntent ? () => { if (documentId) { setDocumentId(null); setDocumentType(null); setCreateIntent(false); setTab('invoices'); } else if (documentType) setDocumentType(null); else { setCreateIntent(false); setTab('home'); } } : null); return () => telegram.setBackHandler(null); }, [createIntent, documentId, documentType, tab, telegram]);
   const updateSettingsSummary = useCallback((summary: { businessName?: string; settingsComplete: boolean }) => {
     setHomeData(current => ({ ...current, ...summary }));
   }, []);
-  function chooseTab(next: AppTab) { setCreateIntent(false); setDocumentType(null); setTab(next); telegram.haptic('selection'); }
-  function startCreate() { setCreateIntent(true); setDocumentType(null); telegram.haptic('light'); }
-  const createContent = documentType ? <SalesDocumentPage type={documentType} preview={preview} onBack={() => setDocumentType(null)} /> : <div className="page create-placeholder"><span className="create-mark"><Icon name="invoice" /></span><h1>چه سندی می‌سازید؟</h1><p>هر دو گزینه ظاهر و مسیر ساخت یکسانی دارند.</p><div className="document-type-options"><button type="button" className="document-type-card" onClick={() => setDocumentType('proforma')}><strong>پیش‌فاکتور</strong><span>پیشنهاد قیمت؛ قابل تبدیل به فاکتور</span></button><button type="button" className="document-type-card" onClick={() => setDocumentType('invoice')}><strong>فاکتور فروش</strong><span>برای سفارشی که کامل پرداخت شده</span></button></div><button className="secondary-button" onClick={() => setCreateIntent(false)}>بازگشت به خانه</button></div>;
-  return <main className="app-shell" data-theme={runtime.colorScheme} data-platform={runtime.platform}><div className="app-frame"><div className="topbar"><div className="brand"><span className="brand-mark"><Icon name="spark" /></span><span><strong>میرا</strong><small>فاکتورساز تلگرام</small></span></div><span className="secure-chip"><span/>امن</span></div><div className="content" key={createIntent ? `create-${documentType??'type'}` : tab}>{createIntent ? createContent : tab === 'home' ? <Home data={homeData} onCreate={startCreate} /> : tab === 'invoices' ? <Invoices /> : <Settings onSummaryChange={updateSettingsSummary} />}</div>
+  function chooseTab(next: AppTab) { setCreateIntent(false); setDocumentType(null); setDocumentId(null); setTab(next); telegram.haptic('selection'); }
+  function startCreate() { setCreateIntent(true); setDocumentType(null); setDocumentId(null); telegram.haptic('light'); }
+  function openDocument(doc:SalesDocument){setDocumentType(doc.documentType);setDocumentId(doc.id);setCreateIntent(true);telegram.haptic('selection');}
+  const createContent = documentType ? <SalesDocumentPage type={documentType} documentId={documentId} preview={preview} onBack={() => {setDocumentType(null);setDocumentId(null);if(documentId){setCreateIntent(false);setTab('invoices');}}} /> : <div className="page create-placeholder"><span className="create-mark"><Icon name="invoice" /></span><h1>چه سندی می‌سازید؟</h1><p>هر دو گزینه ظاهر و مسیر ساخت یکسانی دارند.</p><div className="document-type-options"><button type="button" className="document-type-card" onClick={() => setDocumentType('proforma')}><strong>پیش‌فاکتور</strong><span>پیشنهاد قیمت؛ قابل تبدیل به فاکتور</span></button><button type="button" className="document-type-card" onClick={() => setDocumentType('invoice')}><strong>فاکتور فروش</strong><span>برای سفارشی که کامل پرداخت شده</span></button></div><button className="secondary-button" onClick={() => setCreateIntent(false)}>بازگشت به خانه</button></div>;
+  return <main className="app-shell" data-theme={runtime.colorScheme} data-platform={runtime.platform}><div className="app-frame"><div className="topbar"><div className="brand"><span className="brand-mark"><Icon name="spark" /></span><span><strong>میرا</strong><small>فاکتورساز تلگرام</small></span></div><span className="secure-chip"><span/>امن</span></div><div className="content" key={createIntent ? `create-${documentType??'type'}-${documentId??'new'}` : tab}>{createIntent ? createContent : tab === 'home' ? <Home data={homeData} onCreate={startCreate} /> : tab === 'invoices' ? <DocumentsPage preview={preview} onOpen={openDocument} /> : <Settings onSummaryChange={updateSettingsSummary} />}</div>
     <nav className="bottom-nav" aria-label="ناوبری اصلی"><button className={tab === 'home' && !createIntent ? 'active' : ''} aria-current={tab === 'home' && !createIntent ? 'page' : undefined} onClick={() => chooseTab('home')}><Icon name="home" /><span>خانه</span></button><button className={tab === 'invoices' && !createIntent ? 'active' : ''} aria-current={tab === 'invoices' && !createIntent ? 'page' : undefined} onClick={() => chooseTab('invoices')}><Icon name="invoice" /><span>فاکتورها</span></button><button className={`nav-create${createIntent ? ' active' : ''}`} aria-label="ساخت سند جدید" aria-current={createIntent ? 'page' : undefined} onClick={startCreate}><span><Icon name="plus" /></span><b>سند جدید</b></button><button className={tab === 'settings' && !createIntent ? 'active' : ''} aria-current={tab === 'settings' && !createIntent ? 'page' : undefined} onClick={() => chooseTab('settings')}><Icon name="settings" /><span>تنظیمات</span></button></nav></div></main>;
 }
 

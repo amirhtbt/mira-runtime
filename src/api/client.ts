@@ -85,7 +85,7 @@ export function businessLogoUrl(updatedAt: string | null): string {
 
 export type DocumentType = 'proforma' | 'invoice';
 export interface SalesDocument {
-  id: string; customerId: string; documentType: DocumentType; lifecycleStatus: 'draft'|'issued'|'cancelled';
+  id: string; customerId: string; customerName: string; documentType: DocumentType; lifecycleStatus: 'draft'|'issued'|'cancelled';
   settlementStatus: 'unpaid'|'partial'|'paid'; documentNumber: string|null; sourceDocumentId: string|null;
   currencyUnit: 'toman'|'rial'; subtotalBaseUnit: string; discountBaseUnit: string; surchargeBaseUnit: string;
   grandTotalBaseUnit: string; paidAmountBaseUnit: string; remainingAmountBaseUnit: string; version: number;

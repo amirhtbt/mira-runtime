@@ -83,3 +83,11 @@ Test::run('G04 projections keep proforma deposits separate from final invoiced s
     $s=$pdo->prepare("SELECT SUM(CASE WHEN document_type='invoice' AND lifecycle_status='issued' THEN grand_total_base_unit ELSE 0 END) invoiced, SUM(CASE WHEN document_type='proforma' THEN paid_amount_base_unit ELSE 0 END) deposits FROM sales_documents WHERE business_id=?");$s->execute([$one->context->businessId]);$row=$s->fetch();
     Test::equals('12500000',(string)$row['invoiced']); Test::equals('10000000',(string)$row['deposits']);
 });
+
+Test::run('G04 archive returns both document types with customer identity',function()use($service,$one):void{
+    $documents=$service->list($one->context->businessId);
+    Test::equals(3,count($documents));
+    Test::assert(in_array('proforma',array_column($documents,'documentType'),true));
+    Test::assert(in_array('invoice',array_column($documents,'documentType'),true));
+    Test::assert(!in_array('',array_column($documents,'customerName'),true));
+});
