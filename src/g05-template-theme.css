@@ -1,0 +1,7 @@
+.template-sheet-scale > .invoice-template {
+  --tpl-accent: var(--chosen-accent) !important;
+}
+
+.template-save {
+  position: static;
+}

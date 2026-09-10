@@ -56,7 +56,6 @@ test('G03 settings bottom content clears fixed navigation with safe area', async
   await page.goto('/?g02-preview=1');
   await page.evaluate(() => document.documentElement.style.setProperty('--tg-content-safe-area-inset-bottom', '32px'));
   await page.getByRole('button', { name: 'تنظیمات' }).click();
-  await page.getByText('ظاهر پیش‌فرض').click();
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   const save = await page.locator('.settings-save-bar').boundingBox();
   const nav = await page.locator('.bottom-nav').boundingBox();

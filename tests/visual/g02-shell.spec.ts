@@ -21,7 +21,7 @@ for (const viewport of viewports) {
   }
 }
 
-test('keyboard navigation, safe-area variables and approved compact four-slot RTL navigation', async ({ page }) => {
+test('keyboard navigation, safe-area variables and approved compact five-slot RTL navigation', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?g02-preview=1');
   await page.evaluate(() => {
@@ -36,20 +36,22 @@ test('keyboard navigation, safe-area variables and approved compact four-slot RT
   const create = await page.getByRole('button', { name: 'ساخت سند جدید' }).last().boundingBox();
   const invoices = await page.getByRole('button', { name: 'فاکتورها' }).boundingBox();
   const settings = await page.getByRole('button', { name: 'تنظیمات' }).boundingBox();
+  const templates = await page.getByRole('button', { name: 'قالب‌ها' }).boundingBox();
   const createBubble = await page.locator('.nav-create > span').boundingBox();
-  expect(navigation && home && create && invoices && settings && createBubble).toBeTruthy();
+  expect(navigation && home && create && invoices && settings && templates && createBubble).toBeTruthy();
 
-  if (navigation && home && create && invoices && settings && createBubble) {
+  if (navigation && home && create && invoices && settings && templates && createBubble) {
     const center = (box: { x: number; width: number }) => box.x + box.width / 2;
     expect(center(home)).toBeGreaterThan(center(create));
     expect(center(create)).toBeGreaterThan(center(invoices));
     expect(center(invoices)).toBeGreaterThan(center(settings));
+    expect(center(settings)).toBeGreaterThan(center(templates));
 
-    const widths = [home.width, create.width, invoices.width, settings.width];
+    const widths = [home.width, create.width, invoices.width, settings.width, templates.width];
     expect(Math.max(...widths) - Math.min(...widths)).toBeLessThanOrEqual(1);
 
-    const tops = [home.y, create.y, invoices.y, settings.y];
-    const heights = [home.height, create.height, invoices.height, settings.height];
+    const tops = [home.y, create.y, invoices.y, settings.y, templates.y];
+    const heights = [home.height, create.height, invoices.height, settings.height, templates.height];
     expect(Math.max(...tops) - Math.min(...tops)).toBeLessThanOrEqual(1);
     expect(Math.max(...heights) - Math.min(...heights)).toBeLessThanOrEqual(1);
     expect(home.height).toBeGreaterThanOrEqual(55);
@@ -65,9 +67,10 @@ test('keyboard navigation, safe-area variables and approved compact four-slot RT
   const invoiceLabel = await page.locator('.bottom-nav > button:nth-child(2) > span').boundingBox();
   const createLabel = await page.locator('.bottom-nav > button:nth-child(3) > b').boundingBox();
   const settingsLabel = await page.locator('.bottom-nav > button:nth-child(4) > span').boundingBox();
-  expect(homeLabel && invoiceLabel && createLabel && settingsLabel).toBeTruthy();
-  if (homeLabel && invoiceLabel && createLabel && settingsLabel) {
-    const labelTops = [homeLabel.y, invoiceLabel.y, createLabel.y, settingsLabel.y];
+  const templatesLabel = await page.locator('.bottom-nav > button:nth-child(5) > span').boundingBox();
+  expect(homeLabel && invoiceLabel && createLabel && settingsLabel && templatesLabel).toBeTruthy();
+  if (homeLabel && invoiceLabel && createLabel && settingsLabel && templatesLabel) {
+    const labelTops = [homeLabel.y, invoiceLabel.y, createLabel.y, settingsLabel.y, templatesLabel.y];
     expect(Math.max(...labelTops) - Math.min(...labelTops)).toBeLessThanOrEqual(1);
   }
 

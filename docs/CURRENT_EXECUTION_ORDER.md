@@ -6,9 +6,9 @@ Default branch: `main`
 
 ## Current gate
 
-**G05 — Versioned template engine: six approved templates × portrait/landscape**
+**G05 — Dedicated template catalogue: three structural A4-landscape layouts + colour themes**
 GitHub Issue: #6
-State: **ACTIVE — DEPLOYED / HUMAN ACCEPTANCE READY**. Implementation is merged and exact-SHA staging deployment/smoke evidence is recorded. Issue #6 stays open and G06 stays inactive until explicit owner Human Acceptance.
+State: **ACTIVE — OWNER-REQUESTED VISUAL CORRECTION IN PROGRESS**. The earlier six-template/two-orientation acceptance target is superseded. Issue #6 stays open and G06 stays inactive.
 
 G00 / Issue #1 through G04 / Issue #5 are accepted and must not be reopened unless a regression, new platform constraint or explicit owner decision is documented.
 
@@ -85,7 +85,7 @@ G00 / Issue #1 through G04 / Issue #5 are accepted and must not be reopened unle
 3. #3 — G02: Animated RTL app shell and design system — PASS / CLOSED (real iOS deferred to G08)
 4. #4 — G03: Seller profile and configurable invoice settings — PASS / CLOSED (real iOS deferred to G08)
 5. #5 — G04: Deterministic sales-document engine and draft workflow — PASS / CLOSED
-6. #6 — G05: Versioned template engine, six approved templates and 12 orientations — ACTIVE / DEPLOYED / HUMAN ACCEPTANCE READY
+6. #6 — G05: Dedicated Templates tab, three structural A4-landscape layouts and colour themes — ACTIVE / VISUAL CORRECTION
 7. #7 — G06: Persian image/PDF export and Telegram sharing — INACTIVE
 8. #8 — G07: Invoice history, search, duplicate and lightweight reuse
 9. #9 — G08: Production security, performance and deployment hardening
@@ -143,4 +143,4 @@ For sales-document boundaries, also read `docs/SALES_DOCUMENT_DOMAIN.md` before 
 
 ## Immediate next action
 
-Run G05 Human Acceptance on Telegram Android and Telegram Desktop only. Verify all six templates, portrait/landscape switching, conditional seller/customer data, Rial-only document creation, pro-forma partial/full settlement, conversion to final invoice with no payment breakdown, direct invoice creation, and mobile/desktop usability. Do not close Issue #6 or activate/implement G06 until the owner explicitly accepts these checks. Real iOS remains mandatory in G08 before G09.
+Complete, deploy and visually verify the owner-approved G05 correction: a leftmost fifth `قالب‌ها` tab, three genuinely different A4-landscape layouts, separate colour themes, persisted active selection, full preview with zoom and external explanation, and no template picker in Settings. Do not close Issue #6 or activate G06 until explicit Android/Desktop acceptance. Real iOS remains mandatory in G08 before G09.

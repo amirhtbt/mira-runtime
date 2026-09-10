@@ -1,6 +1,19 @@
 # G05 Implementation Record — 2026-09-10
 
-Status: **DEPLOYED / HUMAN ACCEPTANCE READY**. G05 remains ACTIVE and Issue #6 must stay open until explicit owner Human Acceptance. G06 remains inactive.
+Status: **SUPERSEDED VISUAL IMPLEMENTATION / CORRECTION IN PROGRESS**. The deployment evidence below remains historical evidence for the first G05 implementation, not acceptance of the revised design.
+
+## Owner-approved correction
+
+- move template selection into a dedicated fifth bottom-navigation tab, first from the left;
+- keep three genuinely distinct structures: Minimal, Modern Business and Classic Business;
+- support A4 landscape only; portrait is removed;
+- separate colour theme from structural layout;
+- persist the active layout/theme for all subsequently finalized document snapshots;
+- provide full preview, zoom and explanatory content outside the sheet;
+- remove the template selector/preview from Settings;
+- preserve all conditional V1 fields, Rial-only amounts and final-invoice payment-history exclusion.
+
+G05 must be redeployed and accepted again before PASS. G06 remains inactive.
 
 ## Implemented contract
 

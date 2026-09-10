@@ -260,7 +260,7 @@ final class SettingsSchema
         self::assertAllowedKeys($patch, ['templateId', 'accent', 'invoiceVariant', 'logoPosition', 'density', 'fontSize'], 'visual');
         foreach ($patch as $key => $value) {
             $base[$key] = match ($key) {
-                'templateId' => self::enum($value, ['minimal', 'luxury', 'boutique', 'modern-business', 'bazaar', 'classic-business'], 'visual_templateId'),
+                'templateId' => self::enum($value, ['minimal', 'modern-business', 'classic-business'], 'visual_templateId'),
                 'accent' => self::accent($value),
                 'invoiceVariant' => self::enum($value, ['auto', 'light', 'dark'], 'visual_invoiceVariant'),
                 'logoPosition' => self::enum($value, ['start', 'center', 'end'], 'visual_logoPosition'),

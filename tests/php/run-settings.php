@@ -176,3 +176,16 @@ Test::run('G05 legacy mira-classic business settings are migrated without touchi
     Test::equals('classic-business', $loaded['settings']['visual']['templateId']);
     Test::equals(7, $loaded['version']);
 });
+
+Test::run('G05 removed presentation choices map to the three-layout catalogue', function () use ($pdo, $service, $two): void {
+    $legacy = SettingsSchema::defaults();
+    $legacy['visual']['templateId'] = 'luxury';
+    $statement = $pdo->prepare('UPDATE business_settings SET settings_json = ?, version = 8 WHERE business_id = ?');
+    $statement->execute([json_encode($legacy, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR), $two->context->businessId]);
+    $migration = file_get_contents(__DIR__ . '/../../server/migrations/006_g05_landscape_template_catalog.sql');
+    Test::assert(is_string($migration));
+    $pdo->exec($migration);
+    $loaded = $service->get($two->context->businessId);
+    Test::equals('classic-business', $loaded['settings']['visual']['templateId']);
+    Test::equals(8, $loaded['version']);
+});
