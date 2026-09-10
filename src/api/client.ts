@@ -82,3 +82,23 @@ export async function deleteBusinessLogo(): Promise<SettingsResponse['logo']> {
 export function businessLogoUrl(updatedAt: string | null): string {
   return `/api/v1/settings/logo${updatedAt ? `?v=${encodeURIComponent(updatedAt)}` : ''}`;
 }
+
+export type DocumentType = 'proforma' | 'invoice';
+export interface SalesDocument {
+  id: string; customerId: string; documentType: DocumentType; lifecycleStatus: 'draft'|'issued'|'cancelled';
+  settlementStatus: 'unpaid'|'partial'|'paid'; documentNumber: string|null; sourceDocumentId: string|null;
+  currencyUnit: 'toman'|'rial'; subtotalBaseUnit: string; discountBaseUnit: string; surchargeBaseUnit: string;
+  grandTotalBaseUnit: string; paidAmountBaseUnit: string; remainingAmountBaseUnit: string; version: number;
+  items: Array<{title:string;description:string;quantityMilli:string|number;unitPriceBaseUnit:string|number;lineTotalBaseUnit:string|number;position:number}>;
+  payments?: Array<{id:string;amount_base_unit:string;paid_at:string;method:string;reference_text:string;note:string;status:string}>;
+  canIssueFinalInvoice: boolean;
+}
+export interface DraftInput { documentType:DocumentType; customer:{displayName:string;phone?:string}; items:Array<{title:string;description?:string;quantityMilli:string;unitPriceBaseUnit:string}> }
+
+export async function createSalesDraft(input:DraftInput):Promise<SalesDocument>{ return requireData(await request<SalesDocument>('/api/v1/documents',{method:'POST',body:JSON.stringify(input)}),'document_create_failed'); }
+export async function getSalesDocument(id:string):Promise<SalesDocument>{ return requireData(await request<SalesDocument>(`/api/v1/documents/${encodeURIComponent(id)}`),'document_load_failed'); }
+export async function updateSalesDraft(id:string,input:{version:number;items:DraftInput['items']}):Promise<SalesDocument>{ return requireData(await request<SalesDocument>(`/api/v1/documents/${encodeURIComponent(id)}`,{method:'PUT',body:JSON.stringify(input)}),'document_update_failed'); }
+export async function finalizeSalesDocument(id:string,paidConfirmed=false):Promise<SalesDocument>{ return requireData(await request<SalesDocument>(`/api/v1/documents/${encodeURIComponent(id)}/finalize`,{method:'POST',body:JSON.stringify({paidConfirmed})}),'document_finalize_failed'); }
+export async function addProformaPayment(id:string,amountBaseUnit:string,idempotencyKey:string):Promise<SalesDocument>{ return requireData(await request<SalesDocument>(`/api/v1/documents/${encodeURIComponent(id)}/payments`,{method:'POST',body:JSON.stringify({amountBaseUnit,idempotencyKey})}),'payment_failed'); }
+export async function issueFinalInvoice(id:string):Promise<SalesDocument>{ return requireData(await request<SalesDocument>(`/api/v1/documents/${encodeURIComponent(id)}/final-invoice`,{method:'POST',body:'{}'}),'conversion_failed'); }
+export async function listSalesDocuments():Promise<SalesDocument[]>{ return requireData(await request<{documents:SalesDocument[]}>('/api/v1/documents'),'documents_load_failed').documents; }

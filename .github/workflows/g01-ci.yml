@@ -2,7 +2,7 @@ name: Quality CI
 
 on:
   push:
-    branches: [main, 'g01/**', 'g02/**', 'g03/**']
+    branches: [main, 'g01/**', 'g02/**', 'g03/**', 'g04/**']
   pull_request:
     branches: [main]
 
@@ -76,6 +76,8 @@ jobs:
         run: php tests/php/run-integration.php
       - name: G03 settings persistence and security tests
         run: php tests/php/run-settings.php
+      - name: G04 deterministic sales-document tests
+        run: php tests/php/run-sales.php
 
   deployment-safety:
     runs-on: ubuntu-latest
@@ -164,6 +166,15 @@ jobs:
           grep -F "['image/png', 'image/jpeg', 'image/webp']" server/src/Settings/LogoService.php >/dev/null
           grep -F 'FILEINFO_MIME_TYPE' server/src/Settings/LogoService.php >/dev/null
           grep -F 'MAX_BYTES' server/src/Settings/LogoService.php >/dev/null
+      - name: G04 tenant scope, integer money and conversion guards stay present
+        run: |
+          grep -F "business_id=?" server/src/Sales/SalesDocumentService.php >/dev/null
+          grep -F "overpayment_rejected" server/src/Sales/SalesDocumentService.php >/dev/null
+          grep -F "source_document_id" server/migrations/003_g04_sales_documents.sql >/dev/null
+          if grep -R -E '\b(float|double)\b' server/src/Sales; then
+            echo 'Floating point money is forbidden in G04' >&2
+            exit 1
+          fi
 
   secrets:
     runs-on: ubuntu-latest
