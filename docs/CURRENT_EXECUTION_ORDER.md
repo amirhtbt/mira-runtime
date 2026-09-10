@@ -6,9 +6,9 @@ Default branch: `main`
 
 ## Current gate
 
-**G05 — Versioned template engine and first five templates**
+**G05 — Versioned template engine: six approved templates × portrait/landscape**
 GitHub Issue: #6
-State: ACTIVE — G04 and its archive acceptance repair are owner-accepted and closed. The versioned presentation-only template platform is the single active delivery gate.
+State: **ACTIVE — DEPLOYED / HUMAN ACCEPTANCE READY**. Implementation is merged and exact-SHA staging deployment/smoke evidence is recorded. Issue #6 stays open and G06 stays inactive until explicit owner Human Acceptance.
 
 G00 / Issue #1 through G04 / Issue #5 are accepted and must not be reopened unless a regression, new platform constraint or explicit owner decision is documented.
 
@@ -62,6 +62,22 @@ G00 / Issue #1 through G04 / Issue #5 are accepted and must not be reopened unle
 - Full evidence: `docs/g03/G03_IMPLEMENTATION_AND_ACCEPTANCE_2026-09-10.md`.
 - Issue #4 is PASS / CLOSED.
 
+## G05 staging evidence
+
+- Implementation PR #53 exact head: `18db7907a16785682a89b6cc725a66131127eb22`.
+- PR-head Quality CI run `34478630692`: PASS; feature-branch push CI run `34478596467`: PASS.
+- Squash merge SHA: `d6230b365d952b9ad94e1bd6d3f0aece7fcfe79a`.
+- Merge-SHA Quality CI run `34478818199`: PASS.
+- `deploy/staging` was verified on the same merge SHA.
+- Direct cPanel staging deploy run `34478903138`, deploy job `102876440657`: PASS.
+- Checkout log confirms exact deployed SHA `d6230b365d952b9ad94e1bd6d3f0aece7fcfe79a`.
+- Release included `004_g05_template_engine.sql`; the staging migration bridge succeeded, and the runner processes versioned migrations transactionally with ledger recording. The successful response body is intentionally not printed by the workflow, so no unsupported live `applied` line is claimed; the disposable CI DB in the same run explicitly logged `applied 004_g05_template_engine.sql`.
+- Built-in live smoke confirmed health, DB/config readiness, protected runtime HTTP denial, frontend HTTP 200 and `X-Robots-Tag: noindex, nofollow, noarchive`.
+- Exact-source automated coverage verifies six templates, both orientations (12 variants), Rial-only new output, no Toman option/output, conditional field collapse, 390×844 no-horizontal-overflow, and G04 payment/conversion regressions.
+- Authenticated template selection, visual seller/customer field coverage, pro-forma payment UI, conversion UI, and Android/Desktop usability remain Human Acceptance and must not be represented as automated live PASS.
+- Real iOS remains DEFERRED / NOT PASSED to G08 before G09.
+- Full evidence: `docs/g05/G05_IMPLEMENTATION_2026-09-10.md`.
+
 ## Ordered gates
 
 1. #1 — G00: Product and architecture freeze — PASS / CLOSED
@@ -69,8 +85,8 @@ G00 / Issue #1 through G04 / Issue #5 are accepted and must not be reopened unle
 3. #3 — G02: Animated RTL app shell and design system — PASS / CLOSED (real iOS deferred to G08)
 4. #4 — G03: Seller profile and configurable invoice settings — PASS / CLOSED (real iOS deferred to G08)
 5. #5 — G04: Deterministic sales-document engine and draft workflow — PASS / CLOSED
-6. #6 — G05: Versioned template engine and first five templates — ACTIVE
-7. #7 — G06: Persian image/PDF export and Telegram sharing
+6. #6 — G05: Versioned template engine, six approved templates and 12 orientations — ACTIVE / DEPLOYED / HUMAN ACCEPTANCE READY
+7. #7 — G06: Persian image/PDF export and Telegram sharing — INACTIVE
 8. #8 — G07: Invoice history, search, duplicate and lightweight reuse
 9. #9 — G08: Production security, performance and deployment hardening
 10. #10 — G09: Free pilot, analytics and user feedback
@@ -127,4 +143,4 @@ For sales-document boundaries, also read `docs/SALES_DOCUMENT_DOMAIN.md` before 
 
 ## Immediate next action
 
-Execute G05 / Issue #6 only: build a versioned presentation-only template registry over the immutable G04 snapshot and normalized `InvoiceViewModel`. Deliver Minimal Clean, Luxury, Fashion/Boutique, Modern Business and Bazaar/Commerce with shared 1/20/100-item, long Persian/mixed-content, logo-shape, digit/currency, overflow and visual-regression fixtures. Templates must never access SQL/raw records or recalculate authoritative totals. Keep G06 export/sharing and the approved G07 customer-card/search contract out of scope. Real iOS testing remains mandatory in G08 before G09.
+Run G05 Human Acceptance on Telegram Android and Telegram Desktop only. Verify all six templates, portrait/landscape switching, conditional seller/customer data, Rial-only document creation, pro-forma partial/full settlement, conversion to final invoice with no payment breakdown, direct invoice creation, and mobile/desktop usability. Do not close Issue #6 or activate/implement G06 until the owner explicitly accepts these checks. Real iOS remains mandatory in G08 before G09.
