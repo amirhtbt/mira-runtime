@@ -149,3 +149,30 @@ Test::run('G03 logo validation is raster content based size bounded and business
     Test::throws(fn() => LogoService::validateBytes('<svg><script>alert(1)</script></svg>'), LogoValidationException::class);
     Test::throws(fn() => LogoService::validateBytes(str_repeat('x', LogoService::MAX_BYTES + 1)), LogoValidationException::class, 'too_large');
 });
+
+Test::run('G05 legacy mira-classic business settings are migrated without touching business data', function () use ($pdo, $service, $two): void {
+    $legacy = SettingsSchema::defaults();
+    $legacy['seller']['businessName'] = 'Legacy Mira Seller';
+    $legacy['visual']['templateId'] = 'mira-classic';
+    $encoded = json_encode($legacy, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+    $statement = $pdo->prepare(
+        'INSERT INTO business_settings (business_id, settings_json, version, created_at, updated_at) VALUES (?, ?, 7, NOW(), NOW()) '
+        . 'ON DUPLICATE KEY UPDATE settings_json = VALUES(settings_json), version = VALUES(version), updated_at = VALUES(updated_at)'
+    );
+    $statement->execute([$two->context->businessId, $encoded]);
+
+    Test::throws(
+        fn() => $service->get($two->context->businessId),
+        SettingsValidationException::class,
+        'visual_templateId_invalid'
+    );
+
+    $migration = file_get_contents(__DIR__ . '/../../server/migrations/005_g05_legacy_template_settings.sql');
+    Test::assert(is_string($migration));
+    $pdo->exec($migration);
+
+    $loaded = $service->get($two->context->businessId);
+    Test::equals('Legacy Mira Seller', $loaded['settings']['seller']['businessName']);
+    Test::equals('classic-business', $loaded['settings']['visual']['templateId']);
+    Test::equals(7, $loaded['version']);
+});
