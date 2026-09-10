@@ -74,6 +74,7 @@ describe('G03 SettingsPage', () => {
   it('reports load failure instead of leaving an endless spinner', async () => {
     vi.mocked(getBusinessSettings).mockRejectedValueOnce(new Error('offline'));
     render(<SettingsPage />);
-    expect(await screen.findByRole('alert')).toHaveTextContent('تنظیمات بارگذاری نشد');
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('تنظیمات بارگذاری نشد');
   });
 });
