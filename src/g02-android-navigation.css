@@ -1,0 +1,18 @@
+.bottom-nav > button:last-child {
+  grid-column: 4;
+}
+
+.bottom-nav .nav-create {
+  position: absolute;
+  z-index: 2;
+  top: 8px;
+  left: 50%;
+  width: 88px;
+  min-width: 88px;
+  color: var(--brand);
+  transform: translate(-50%, -21px);
+}
+
+.bottom-nav .nav-create:active {
+  transform: translate(-50%, -21px) scale(.96);
+}
