@@ -84,7 +84,7 @@ Before work, read in this order:
 - Persian-first, RTL-first, mobile-first.
 - Visual experience is animated/premium but normal invoice creation stays simple.
 - Pro-forma and invoice are explicit types of one shared sales-document aggregate; the UI exposes one `سند جدید` action and one lightweight type choice.
-- Conversion creates a linked invoice without mutating the pro-forma; payments affect invoices only; customer history groups both types by stable customer ID.
+- Deposits/installments and remaining amount belong to the pro-forma. Exact full settlement unlocks a linked final invoice without mutating the source; installment details remain internal and are omitted from the invoice. Customer history groups both types by stable customer ID without double-counting.
 - Conversion analytics is derived from explicit links/events using an eligible issued-pro-forma cohort, never inferred from matching content.
 - Advanced invoice parameters live in Settings/progressive disclosure.
 - Templates are created/versioned by the product team through Git/CI; no end-user template builder in V1.

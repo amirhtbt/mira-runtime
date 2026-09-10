@@ -13,7 +13,7 @@
 - numbering
 - separate pro-forma/invoice numbering sequences
 - conversion eligibility and idempotency
-- payment allocation and derived balance status
+- pro-forma payment allocation and derived remaining amount
 - date formatting
 - settings merge/defaulting
 - Telegram auth validation helpers
@@ -26,7 +26,7 @@ Money calculations must use integer minor/base units or another deterministic de
 - auth/session
 - CRUD sales document for both explicit types
 - pro-forma-to-invoice conversion/link integrity
-- append/void payment and invoice allocation
+- append/void payment and pro-forma allocation
 - ownership isolation / IDOR protection
 - business scoping
 - customer/product optional persistence
@@ -56,7 +56,7 @@ Critical user journeys:
 6. failed network -> retry/draft recovery
 7. template switch preserves totals
 8. PDF/image export output
-9. pro-forma -> convert once -> linked invoice -> partial payment -> paid
+9. pro-forma -> deposit -> completion payment -> issue linked final invoice once
 10. customer -> all pro-formas/invoices -> conversion links and correct balance
 
 ### Visual regression
@@ -117,15 +117,17 @@ Test matrix:
 - rounding order
 - Rial/Toman presentation
 - formatted/unformatted parse behavior
-- payment sum below/equal/above invoice total
+- payment sum below/equal/above pro-forma total
 - voided payment exclusion
-- pro-forma exclusion from billed/paid/outstanding totals
+- final-invoice issuance rejected below/above exact settlement
+- final invoice output omits installment details
+- converted pro-forma payment and invoice totals are not double-counted
 
 The engine total is authoritative; templates cannot recalculate independently.
 
 Historical snapshot tests must prove that changing settings, calculation-engine implementation or template defaults cannot alter stored authoritative totals for finalized/exported invoices.
 
-Conversion tests must prove that the source pro-forma remains immutable, the invoice receives its own number/snapshot, repeated requests are idempotent, cross-business/customer links are rejected and analytics counts explicit eligible links rather than amount/name matches.
+Conversion tests must prove that the source pro-forma remains immutable, issuance is blocked until exact full settlement, the invoice receives its own number/snapshot without installment breakdown, repeated requests are idempotent, cross-business/customer links are rejected and analytics counts explicit eligible links rather than amount/name matches.
 
 ## 4. Performance budgets
 
