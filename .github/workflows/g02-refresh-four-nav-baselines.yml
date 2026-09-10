@@ -1,0 +1,44 @@
+name: Refresh G02 Four-Nav Visual Baselines
+
+on:
+  push:
+    branches: ['g02/four-equal-bottom-nav']
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    if: ${{ !contains(github.event.head_commit.message, '[visual-baselines]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: g02/four-equal-bottom-nav
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install pinned frontend dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Install visual-test browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Refresh visual baselines without weakening assertions
+        run: npm run test:visual -- --update-snapshots
+
+      - name: Commit refreshed baselines
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/visual/g02-shell.spec.ts-snapshots
+          if git diff --cached --quiet; then
+            echo "No visual baseline changes were generated."
+            exit 0
+          fi
+          git commit -m "Refresh four-nav visual baselines [visual-baselines]"
+          git push origin HEAD:g02/four-equal-bottom-nav
