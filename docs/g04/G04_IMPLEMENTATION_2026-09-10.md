@@ -1,7 +1,10 @@
 # G04 Implementation — 2026-09-10
 
 Gate: G04 / Issue #5  
-Status: IMPLEMENTED LOCALLY / PR AND STAGING EVIDENCE PENDING
+Status: IMPLEMENTED / DEPLOYED / AWAITING OWNER ACCEPTANCE
+
+Accepted implementation merge: `6e8402e113cb12098d9351fe11e3f3bb5c9f0f35`  
+Implementation PR: #49
 
 ## Implemented boundary
 
@@ -37,7 +40,24 @@ The G04 database test covers deterministic calculation, draft recovery/version c
 
 Frontend visual/interaction coverage includes Android light/dark and desktop RTL draft creation plus the direct-invoice no-breakdown boundary. Existing G01–G03 tests remain mandatory.
 
-Exact commit, PR, CI, merge, deploy and smoke identifiers are intentionally left for the verified GitHub/staging execution. G04 must remain open as `AWAITING OWNER ACCEPTANCE` after deployment. Real iOS remains `DEFERRED / NOT PASSED` to G08 before G09.
+## Verified delivery evidence
+
+- Exact PR head: `713cff376a60a7ecce7d5956110815aac6a3987f`
+- PR Quality CI run `34469433292`: PASS
+  - frontend: PASS, including 18 unit tests, build, bundle scan and 18 Playwright interaction/visual tests
+  - backend: PASS, including PHP syntax, migrations 001–003, G01/G03 regressions and G04 deterministic database tests
+  - deployment-safety: PASS
+  - repository secrets: PASS
+- Merge SHA: `6e8402e113cb12098d9351fe11e3f3bb5c9f0f35`
+- Post-merge main Quality CI run `34469579178`: PASS
+- `deploy/staging` fast-forwarded to the exact merge SHA.
+- Direct cPanel staging deploy run `34469726490`: PASS, including rebuild/tests, release preparation, FTPS publication and migration 003.
+- Live `/api/v1/health`: HTTP 200 and gate `G04`.
+- Live unauthenticated `/api/v1/documents`: HTTP 401.
+- Live assets: `index-C8pmZp0_.js` and `index-CiWxBeV0.css`.
+- Staging responses retain `X-Robots-Tag: noindex, nofollow, noarchive`.
+
+G04 remains open as `AWAITING OWNER ACCEPTANCE`. Real iOS remains `DEFERRED / NOT PASSED` to G08 before G09.
 
 ## Deferred
 
