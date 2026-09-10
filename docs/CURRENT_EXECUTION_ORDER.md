@@ -6,11 +6,11 @@ Default branch: `main`
 
 ## Current gate
 
-**G03 — Seller profile and configurable invoice settings**
-GitHub Issue: #4
-State: ACTIVE — G02 is accepted and closed; settings/profile implementation is the single active delivery gate.
+**G04 — Deterministic sales-document engine and draft workflow**
+GitHub Issue: #5
+State: ACTIVE — G03 is accepted and closed; the deterministic document/draft engine is the single active delivery gate.
 
-G00 / Issue #1, G01 / Issue #2 and G02 / Issue #3 are accepted and must not be reopened unless a regression, new platform constraint or explicit owner decision is documented.
+G00 / Issue #1, G01 / Issue #2, G02 / Issue #3 and G03 / Issue #4 are accepted and must not be reopened unless a regression, new platform constraint or explicit owner decision is documented.
 
 ## G00 acceptance evidence
 
@@ -49,13 +49,26 @@ G00 / Issue #1, G01 / Issue #2 and G02 / Issue #3 are accepted and must not be r
 - Real iOS acceptance remains DEFERRED / NOT PASSED to G08 before G09; simulated iPhone viewport coverage is not iOS acceptance.
 - Issue #3 is PASS / CLOSED.
 
+## G03 acceptance evidence
+
+- Seller/business profile, payment instructions, document/presentation/item/financial/text/visual defaults and secure raster logo handling merged via PR #47 as `238cb3c9694473ce38b89b3072d21b511defb1d0`.
+- Authorization scope is derived from authenticated `SessionContext.businessId`; arbitrary tenant scope and mass-assigned document overrides are rejected.
+- Migration `002_g03_business_settings.sql`, immutable finalized-settings snapshot boundary and progressive-disclosure RTL Settings UI are included.
+- Exact PR-head Quality CI run `34453548104` PASS; main Quality CI run `34453727298` PASS on the accepted merge SHA.
+- `deploy/staging` was fast-forwarded to the exact merge SHA; direct cPanel deploy run `34453863464` PASS, including frontend/backend tests, migrations and live smoke.
+- Live `/api/v1/health` reports G03, unauthenticated Settings access returns 401, current G03 asset hashes are served, and staging retains `X-Robots-Tag: noindex, nofollow, noarchive`.
+- Owner human acceptance PASS on 2026-09-10: settings saved in Telegram Desktop and were correctly persisted/visible in Telegram Android.
+- Real iOS acceptance remains DEFERRED / NOT PASSED to G08 before G09. No G04 payment transaction or settlement engine was pulled into G03.
+- Full evidence: `docs/g03/G03_IMPLEMENTATION_AND_ACCEPTANCE_2026-09-10.md`.
+- Issue #4 is PASS / CLOSED.
+
 ## Ordered gates
 
 1. #1 — G00: Product and architecture freeze — PASS / CLOSED
 2. #2 — G01: Telegram Mini App foundation and trusted authentication — PASS / CLOSED (iOS deferred to G08)
 3. #3 — G02: Animated RTL app shell and design system — PASS / CLOSED (real iOS deferred to G08)
-4. #4 — G03: Seller profile and configurable invoice settings — ACTIVE
-5. #5 — G04: Deterministic invoice engine and draft workflow
+4. #4 — G03: Seller profile and configurable invoice settings — PASS / CLOSED (real iOS deferred to G08)
+5. #5 — G04: Deterministic sales-document engine and draft workflow — ACTIVE
 6. #6 — G05: Versioned template engine and first five templates
 7. #7 — G06: Persian image/PDF export and Telegram sharing
 8. #8 — G07: Invoice history, search, duplicate and lightweight reuse
@@ -114,4 +127,4 @@ For sales-document boundaries, also read `docs/SALES_DOCUMENT_DOMAIN.md` before 
 
 ## Immediate next action
 
-Execute G03 / Issue #4 only: implement the seller/business profile and deep-but-non-intrusive configurable document settings with persistence, validation, authorization/business scoping and progressive disclosure. Keep simple users out of advanced settings unless they choose to enter them. Preserve finalized historical snapshots, deterministic money/date/number behavior, shared-host compatibility and the established sales-document boundaries. Do not pull G04 payment/draft-engine behavior, G07 customer history or G09 analytics into G03. Real iOS testing remains mandatory in G08 before G09.
+Execute G04 / Issue #5 only: implement the deterministic shared sales-document engine and recoverable draft workflow for explicit pro-forma/final-invoice types. Follow `docs/SALES_DOCUMENT_DOMAIN.md`: staged payments belong to pro-formas, exact full settlement unlocks idempotent final-invoice issuance, the source pro-forma remains immutable, and the final invoice omits installment breakdown. Preserve G03 settings/snapshot boundaries and keep G05 templates, G06 export, G07 customer history and G09 analytics out of scope. Real iOS testing remains mandatory in G08 before G09.
