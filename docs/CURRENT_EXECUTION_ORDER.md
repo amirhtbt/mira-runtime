@@ -6,11 +6,11 @@ Default branch: `main`
 
 ## Current gate
 
-**G04 — Deterministic sales-document engine and draft workflow**
-GitHub Issue: #5
-State: ACTIVE — ACCEPTANCE REPAIR IN PROGRESS. Owner testing found that issued pro-formas were persisted by the backend but the `فاکتورها` screen still rendered its empty G02 placeholder. G04 remains open while the archive is connected to stored documents, records can be reopened for payment/conversion, and the repair is redeployed and re-accepted.
+**G05 — Versioned template engine and first five templates**
+GitHub Issue: #6
+State: ACTIVE — G04 and its archive acceptance repair are owner-accepted and closed. The versioned presentation-only template platform is the single active delivery gate.
 
-G00 / Issue #1, G01 / Issue #2, G02 / Issue #3 and G03 / Issue #4 are accepted and must not be reopened unless a regression, new platform constraint or explicit owner decision is documented.
+G00 / Issue #1 through G04 / Issue #5 are accepted and must not be reopened unless a regression, new platform constraint or explicit owner decision is documented.
 
 ## G00 acceptance evidence
 
@@ -68,8 +68,8 @@ G00 / Issue #1, G01 / Issue #2, G02 / Issue #3 and G03 / Issue #4 are accepted a
 2. #2 — G01: Telegram Mini App foundation and trusted authentication — PASS / CLOSED (iOS deferred to G08)
 3. #3 — G02: Animated RTL app shell and design system — PASS / CLOSED (real iOS deferred to G08)
 4. #4 — G03: Seller profile and configurable invoice settings — PASS / CLOSED (real iOS deferred to G08)
-5. #5 — G04: Deterministic sales-document engine and draft workflow — ACTIVE
-6. #6 — G05: Versioned template engine and first five templates
+5. #5 — G04: Deterministic sales-document engine and draft workflow — PASS / CLOSED
+6. #6 — G05: Versioned template engine and first five templates — ACTIVE
 7. #7 — G06: Persian image/PDF export and Telegram sharing
 8. #8 — G07: Invoice history, search, duplicate and lightweight reuse
 9. #9 — G08: Production security, performance and deployment hardening
@@ -127,4 +127,4 @@ For sales-document boundaries, also read `docs/SALES_DOCUMENT_DOMAIN.md` before 
 
 ## Immediate next action
 
-Execute G04 / Issue #5 only: implement the deterministic shared sales-document engine and recoverable draft workflow for explicit pro-forma/final-invoice types. Follow `docs/SALES_DOCUMENT_DOMAIN.md`: staged payments belong to pro-formas, exact full settlement unlocks idempotent final-invoice issuance, the source pro-forma remains immutable, and the final invoice omits installment breakdown. Preserve G03 settings/snapshot boundaries and keep G05 templates, G06 export, G07 customer history and G09 analytics out of scope. Real iOS testing remains mandatory in G08 before G09.
+Execute G05 / Issue #6 only: build a versioned presentation-only template registry over the immutable G04 snapshot and normalized `InvoiceViewModel`. Deliver Minimal Clean, Luxury, Fashion/Boutique, Modern Business and Bazaar/Commerce with shared 1/20/100-item, long Persian/mixed-content, logo-shape, digit/currency, overflow and visual-regression fixtures. Templates must never access SQL/raw records or recalculate authoritative totals. Keep G06 export/sharing and the approved G07 customer-card/search contract out of scope. Real iOS testing remains mandatory in G08 before G09.
