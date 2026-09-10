@@ -1,18 +1,25 @@
-.bottom-nav > button:last-child {
-  grid-column: 4;
+.bottom-nav > button:nth-child(1) {
+  order: 1;
 }
 
 .bottom-nav .nav-create {
-  position: absolute;
-  z-index: 2;
-  top: 8px;
-  left: 50%;
-  width: 88px;
-  min-width: 88px;
+  position: static;
+  z-index: auto;
+  order: 2;
+  width: auto;
+  min-width: 0;
   color: var(--brand);
-  transform: translate(-50%, -21px);
+  transform: translateY(-21px);
+}
+
+.bottom-nav > button:nth-child(2) {
+  order: 3;
+}
+
+.bottom-nav > button:nth-child(4) {
+  order: 4;
 }
 
 .bottom-nav .nav-create:active {
-  transform: translate(-50%, -21px) scale(.96);
+  transform: translateY(-21px) scale(.96);
 }
