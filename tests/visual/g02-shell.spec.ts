@@ -21,7 +21,7 @@ for (const viewport of viewports) {
   }
 }
 
-test('keyboard navigation, safe-area variables and four equal RTL navigation slots', async ({ page }) => {
+test('keyboard navigation, safe-area variables and approved compact four-slot RTL navigation', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?g02-preview=1');
   await page.evaluate(() => {
@@ -31,18 +31,44 @@ test('keyboard navigation, safe-area variables and four equal RTL navigation slo
   await page.keyboard.press('Tab');
   await expect(page.locator(':focus-visible')).toBeVisible();
 
+  const navigation = await page.locator('.bottom-nav').boundingBox();
   const home = await page.getByRole('button', { name: 'خانه' }).boundingBox();
   const create = await page.getByRole('button', { name: 'ساخت سند جدید' }).last().boundingBox();
   const invoices = await page.getByRole('button', { name: 'فاکتورها' }).boundingBox();
   const settings = await page.getByRole('button', { name: 'تنظیمات' }).boundingBox();
-  expect(home && create && invoices && settings).toBeTruthy();
-  if (home && create && invoices && settings) {
+  const createBubble = await page.locator('.nav-create > span').boundingBox();
+  expect(navigation && home && create && invoices && settings && createBubble).toBeTruthy();
+
+  if (navigation && home && create && invoices && settings && createBubble) {
     const center = (box: { x: number; width: number }) => box.x + box.width / 2;
     expect(center(home)).toBeGreaterThan(center(create));
     expect(center(create)).toBeGreaterThan(center(invoices));
     expect(center(invoices)).toBeGreaterThan(center(settings));
+
     const widths = [home.width, create.width, invoices.width, settings.width];
     expect(Math.max(...widths) - Math.min(...widths)).toBeLessThanOrEqual(1);
+
+    const tops = [home.y, create.y, invoices.y, settings.y];
+    const heights = [home.height, create.height, invoices.height, settings.height];
+    expect(Math.max(...tops) - Math.min(...tops)).toBeLessThanOrEqual(1);
+    expect(Math.max(...heights) - Math.min(...heights)).toBeLessThanOrEqual(1);
+    expect(home.height).toBeGreaterThanOrEqual(55);
+    expect(home.height).toBeLessThanOrEqual(57);
+
+    expect(navigation.height).toBeGreaterThanOrEqual(87);
+    expect(navigation.height).toBeLessThanOrEqual(89);
+    expect(createBubble.y).toBeGreaterThanOrEqual(navigation.y);
+    expect(createBubble.y + createBubble.height).toBeLessThanOrEqual(navigation.y + navigation.height - 24);
+  }
+
+  const homeLabel = await page.locator('.bottom-nav > button:nth-child(1) > span').boundingBox();
+  const invoiceLabel = await page.locator('.bottom-nav > button:nth-child(2) > span').boundingBox();
+  const createLabel = await page.locator('.bottom-nav > button:nth-child(3) > b').boundingBox();
+  const settingsLabel = await page.locator('.bottom-nav > button:nth-child(4) > span').boundingBox();
+  expect(homeLabel && invoiceLabel && createLabel && settingsLabel).toBeTruthy();
+  if (homeLabel && invoiceLabel && createLabel && settingsLabel) {
+    const labelTops = [homeLabel.y, invoiceLabel.y, createLabel.y, settingsLabel.y];
+    expect(Math.max(...labelTops) - Math.min(...labelTops)).toBeLessThanOrEqual(1);
   }
 
   await page.getByRole('button', { name: 'ساخت سند جدید' }).last().click();
