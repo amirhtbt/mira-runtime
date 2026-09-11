@@ -2,3 +2,5 @@
 @media(max-width:520px){.settings-grid.two,.toggle-grid{grid-template-columns:1fr}.span-two{grid-column:auto}.advanced-heading{display:block}.advanced-heading p{margin-top:2px}.adjustment-row{grid-template-columns:1fr 1fr}.adjustment-remove{grid-column:2}.settings-save-bar{bottom:calc(88px + var(--tg-content-safe-area-inset-bottom,0px))}}
 @media(max-width:370px){.settings-intro-card{padding:14px}.logo-control{align-items:flex-start}.logo-preview{width:58px;height:58px}.settings-section>summary{padding-inline:12px}.settings-section>summary:after{left:12px}}
 @media(prefers-reduced-motion:reduce){.settings-spinner{animation:none}.settings-section>summary:after,.toggle-row input[type=checkbox]:after{transition:none}}html[data-motion=reduced] .settings-spinner{animation:none}
+.payment-card>details{display:contents}.payment-card>details>summary{display:none}
+.payment-card{min-width:0;overflow:hidden}.payment-card .adjustment-row{grid-template-columns:repeat(2,minmax(0,1fr))}.payment-card .adjustment-row .text-button{grid-column:1/-1;justify-self:start}@media(max-width:520px){.payment-card .adjustment-row{grid-template-columns:minmax(0,1fr)}}

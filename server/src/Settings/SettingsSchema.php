@@ -23,6 +23,7 @@ final class SettingsSchema
                 'customContactLine' => '',
             ],
             'payment' => [
+                'accounts' => [],
                 'cardNumber' => '',
                 'accountNumber' => '',
                 'sheba' => '',
@@ -70,7 +71,7 @@ final class SettingsSchema
                 'shippingAmountBaseUnit' => '0',
                 'serviceFeeAmountBaseUnit' => '0',
                 'taxEnabled' => false,
-                'taxRateBasisPoints' => 0,
+                'taxRateBasisPoints' => 1000,
                 'customAdjustments' => [],
             ],
             'text' => [
@@ -151,9 +152,10 @@ final class SettingsSchema
     /** @param array<string,mixed> $base @param array<string,mixed> $patch @return array<string,mixed> */
     private static function payment(array $base, array $patch): array
     {
-        self::assertAllowedKeys($patch, ['cardNumber', 'accountNumber', 'sheba', 'bankName', 'accountHolder', 'instructions'], 'payment');
+        self::assertAllowedKeys($patch, ['accounts','cardNumber', 'accountNumber', 'sheba', 'bankName', 'accountHolder', 'instructions'], 'payment');
         foreach ($patch as $key => $value) {
             $base[$key] = match ($key) {
+                'accounts' => self::paymentAccounts($value),
                 'cardNumber' => self::digitsIdentifier($value, 16, 16, 'payment_cardNumber'),
                 'accountNumber' => self::digitsIdentifier($value, 4, 32, 'payment_accountNumber'),
                 'sheba' => self::sheba($value),
@@ -163,6 +165,13 @@ final class SettingsSchema
             };
         }
         return $base;
+    }
+
+    /** @return list<array<string,string>> */
+    private static function paymentAccounts(mixed $value): array
+    {
+        if (!is_array($value) || !array_is_list($value) || count($value) > 10) throw new SettingsValidationException('payment_accounts_invalid');
+        $out=[];foreach($value as $row){if(!is_array($row)||array_is_list($row))throw new SettingsValidationException('payment_account_invalid');self::assertAllowedKeys($row,['cardNumber','sheba','bankName','accountHolder'],'payment_account');$out[]=['cardNumber'=>self::digitsIdentifier($row['cardNumber']??'',16,16,'payment_cardNumber'),'sheba'=>self::sheba($row['sheba']??''),'bankName'=>self::plainText($row['bankName']??'',120,'payment_bankName'),'accountHolder'=>self::plainText($row['accountHolder']??'',120,'payment_accountHolder')];}return$out;
     }
 
     /** @param array<string,mixed> $base @param array<string,mixed> $patch @return array<string,mixed> */

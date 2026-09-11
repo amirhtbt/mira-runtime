@@ -17,6 +17,7 @@ use Tinv\Session\SessionContext;
 use Tinv\Session\SessionService;
 use Tinv\Sales\SalesDocumentService;
 use Tinv\Sales\SalesValidationException;
+use Tinv\Sales\CustomerDirectory;
 use Tinv\Settings\LogoService;
 use Tinv\Settings\LogoValidationException;
 use Tinv\Settings\SettingsRepository;
@@ -47,6 +48,7 @@ try {
     );
     $settingsService = new SettingsService(new SettingsRepository($pdo));
     $salesService = new SalesDocumentService($pdo, new SettingsRepository($pdo));
+    $customers = new CustomerDirectory($pdo);
     $logoService = new LogoService($pdo);
     $originGuard = new OriginGuard($config->appOrigin);
     $cookieName = $config->isProductionLike() ? '__Host-tinv_session' : 'tinv_session';
@@ -171,6 +173,23 @@ try {
         $context = $sessionContext();
         header('Cache-Control: private, no-store');
         Json::ok(['documents' => $salesService->list($context->businessId)]);
+    }
+
+    if ($method === 'GET' && $path === '/api/v1/customers') {
+        $context = $sessionContext();
+        header('Cache-Control: private, no-store');
+        $phone = (string) ($_GET['phone'] ?? '');
+        Json::ok(['customers' => strlen($phone) >= 5 ? $customers->search($context->businessId, $phone) : []]);
+    }
+
+    if ($method === 'POST' && $path === '/api/v1/customers') {
+        $context = $sessionContext();
+        Json::ok($customers->save($context->businessId, Json::body()), 201);
+    }
+
+    if ($method === 'PUT' && preg_match('#^/api/v1/customers/([0-9a-f-]{36})$#', $path, $match)) {
+        $context = $sessionContext();
+        Json::ok($customers->save($context->businessId, Json::body(), $match[1]));
     }
 
     if ($method === 'POST' && $path === '/api/v1/documents') {

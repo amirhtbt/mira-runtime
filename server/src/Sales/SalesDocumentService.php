@@ -1,170 +1,26 @@
 <?php
 declare(strict_types=1);
 namespace Tinv\Sales;
-
-use PDO;
-use Tinv\Settings\DocumentSettingsSnapshot;
-use Tinv\Settings\SettingsRepository;
-use Tinv\Settings\SettingsSchema;
-use Tinv\Support\Uuid;
-
-final readonly class SalesDocumentService
-{
-    public function __construct(private PDO $pdo, private SettingsRepository $settings) {}
-
-    /** @param array<string,mixed> $input @return array<string,mixed> */
-    public function createDraft(string $businessId, array $input): array
-    {
-        self::keys($input, ['documentType','customer','items','discountBaseUnit','surchargeBaseUnit','settingsOverrides']);
-        $type = $input['documentType'] ?? 'proforma';
-        if (!in_array($type, ['proforma','invoice'], true)) throw new SalesValidationException('document_type_invalid');
-        $customer = $input['customer'] ?? null;
-        if (!is_array($customer)) throw new SalesValidationException('customer_required');
-        self::keys($customer, ['id','displayName','phone']);
-        $name = trim((string) ($customer['displayName'] ?? ''));
-        if ($name === '' || mb_strlen($name) > 160 || str_contains($name, '<')) throw new SalesValidationException('customer_name_invalid');
-        $discount = Money::amount($input['discountBaseUnit'] ?? '0', 'discount');
-        $surcharge = Money::amount($input['surchargeBaseUnit'] ?? '0', 'surcharge');
-        $items = $input['items'] ?? [];
-        if (!is_array($items) || !array_is_list($items)) throw new SalesValidationException('items_invalid');
-        $totals = Money::calculate($items, $discount, $surcharge);
-        $settings = $this->settings->find($businessId)['settings'] ?? SettingsSchema::defaults();
-        $overrides = $input['settingsOverrides'] ?? [];
-        if (!is_array($overrides)) throw new SalesValidationException('settings_overrides_invalid');
-        // G05 contract: all authoritative amounts are integer Rial values.
-        $currency = 'rial';
-        $now = gmdate('Y-m-d H:i:s'); $documentId = Uuid::v4();
-        $this->pdo->beginTransaction();
-        try {
-            $customerId = $this->upsertCustomer($businessId, $customer, $name, $now);
-            $stmt = $this->pdo->prepare('INSERT INTO sales_documents (id,business_id,customer_id,document_type,currency_unit,subtotal_base_unit,discount_base_unit,surcharge_base_unit,grand_total_base_unit,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)');
-            $stmt->execute([$documentId,$businessId,$customerId,$type,$currency,$totals['subtotal'],$discount,$surcharge,$totals['total'],$now,$now]);
-            $this->replaceItems($documentId, $totals['items'], $now);
-            $this->pdo->commit();
-        } catch (\Throwable $e) { $this->pdo->rollBack(); throw $e; }
-        return $this->get($businessId, $documentId);
-    }
-
-    /** @param array<string,mixed> $input @return array<string,mixed> */
-    public function updateDraft(string $businessId, string $id, array $input): array
-    {
-        self::keys($input, ['items','discountBaseUnit','surchargeBaseUnit','version']);
-        $current = $this->owned($businessId, $id);
-        if ($current['lifecycle_status'] !== 'draft') throw new SalesValidationException('finalized_document_immutable', 409);
-        $expected = Money::amount($input['version'] ?? null, 'version');
-        $discount = Money::amount($input['discountBaseUnit'] ?? (string)$current['discount_base_unit'], 'discount');
-        $surcharge = Money::amount($input['surchargeBaseUnit'] ?? (string)$current['surcharge_base_unit'], 'surcharge');
-        $items = $input['items'] ?? $this->items($id);
-        if (!is_array($items)) throw new SalesValidationException('items_invalid');
-        $totals = Money::calculate(array_values($items), $discount, $surcharge); $now = gmdate('Y-m-d H:i:s');
-        $this->pdo->beginTransaction();
-        try {
-            $stmt=$this->pdo->prepare("UPDATE sales_documents SET subtotal_base_unit=?,discount_base_unit=?,surcharge_base_unit=?,grand_total_base_unit=?,version=version+1,updated_at=? WHERE id=? AND business_id=? AND lifecycle_status='draft' AND version=?");
-            $stmt->execute([$totals['subtotal'],$discount,$surcharge,$totals['total'],$now,$id,$businessId,$expected]);
-            if ($stmt->rowCount() !== 1) throw new SalesValidationException('draft_version_conflict', 409);
-            $this->replaceItems($id,$totals['items'],$now); $this->pdo->commit();
-        } catch (\Throwable $e) { $this->pdo->rollBack(); throw $e; }
-        return $this->get($businessId,$id);
-    }
-
-    /** @return array<string,mixed> */
-    public function finalize(string $businessId, string $id, bool $paidConfirmed = false): array
-    {
-        $this->pdo->beginTransaction();
-        try {
-            $doc=$this->owned($businessId,$id,true);
-            if ($doc['lifecycle_status'] === 'issued') { $this->pdo->commit(); return $this->get($businessId,$id); }
-            if ($doc['lifecycle_status'] !== 'draft') throw new SalesValidationException('document_not_finalizable',409);
-            if ((int)$doc['grand_total_base_unit'] < 1) throw new SalesValidationException('document_total_required');
-            if ($doc['document_type'] === 'invoice' && !$paidConfirmed) throw new SalesValidationException('full_payment_confirmation_required');
-            $settings=$this->settings->find($businessId)['settings'] ?? SettingsSchema::defaults();
-            $customer=$this->customer($businessId,(string)$doc['customer_id']);
-            $snapshot=DocumentSettingsSnapshot::toJson($settings);
-            $number=$this->nextNumber($businessId,(string)$doc['document_type'],$settings);
-            $paid=$doc['document_type']==='invoice' ? (int)$doc['grand_total_base_unit'] : 0;
-            $settlement=$paid>0 ? 'paid' : 'unpaid'; $now=gmdate('Y-m-d H:i:s');
-            $stmt=$this->pdo->prepare("UPDATE sales_documents SET lifecycle_status='issued',settlement_status=?,document_number=?,paid_amount_base_unit=?,settings_snapshot_json=?,customer_snapshot_json=?,version=version+1,issued_at=?,updated_at=? WHERE id=? AND business_id=? AND lifecycle_status='draft'");
-            $stmt->execute([$settlement,$number,$paid,$snapshot,json_encode($customer,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),$now,$now,$id,$businessId]);
-            $full=$this->documentSnapshot($businessId,$id);
-            $this->pdo->prepare('INSERT INTO sales_document_snapshots (id,document_id,version,snapshot_json,created_at) VALUES (?,?,?,?,?)')->execute([Uuid::v4(),$id,1,json_encode($full,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR),$now]);
-            $this->pdo->commit();
-        } catch (\Throwable $e) { $this->pdo->rollBack(); throw $e; }
-        return $this->get($businessId,$id);
-    }
-
-    /** @param array<string,mixed> $input @return array<string,mixed> */
-    public function recordPayment(string $businessId,string $id,array $input): array
-    {
-        self::keys($input,['amountBaseUnit','paidAt','method','reference','note','idempotencyKey']);
-        $amount=Money::amount($input['amountBaseUnit'] ?? null,'payment_amount');
-        if ($amount<1) throw new SalesValidationException('payment_amount_invalid');
-        $key=trim((string)($input['idempotencyKey']??''));
-        if ($key==='' || strlen($key)>100) throw new SalesValidationException('idempotency_key_invalid');
-        $this->pdo->beginTransaction();
-        try {
-            $prior=$this->pdo->prepare('SELECT id FROM payments WHERE business_id=? AND idempotency_key=? LIMIT 1'); $prior->execute([$businessId,$key]);
-            if ($prior->fetch()) { $this->pdo->commit(); return $this->get($businessId,$id); }
-            $doc=$this->owned($businessId,$id,true);
-            if ($doc['document_type']!=='proforma' || $doc['lifecycle_status']!=='issued') throw new SalesValidationException('payment_requires_issued_proforma',409);
-            $paid=(int)$doc['paid_amount_base_unit']; $total=(int)$doc['grand_total_base_unit'];
-            if ($amount>$total-$paid) throw new SalesValidationException('overpayment_rejected',409);
-            $paymentId=Uuid::v4(); $now=gmdate('Y-m-d H:i:s'); $paidAt=(string)($input['paidAt']??$now);
-            $this->pdo->prepare('INSERT INTO payments (id,business_id,proforma_id,amount_base_unit,paid_at,method,reference_text,note,idempotency_key,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)')->execute([$paymentId,$businessId,$id,$amount,$paidAt,substr((string)($input['method']??'manual'),0,32),substr((string)($input['reference']??''),0,160),substr((string)($input['note']??''),0,500),$key,$now]);
-            $this->pdo->prepare('INSERT INTO payment_allocations (payment_id,document_id,amount_base_unit,created_at) VALUES (?,?,?,?)')->execute([$paymentId,$id,$amount,$now]);
-            $next=$paid+$amount; $status=$next===$total?'paid':'partial';
-            $this->pdo->prepare('UPDATE sales_documents SET paid_amount_base_unit=?,settlement_status=?,version=version+1,updated_at=? WHERE id=? AND business_id=?')->execute([$next,$status,$now,$id,$businessId]);
-            $this->pdo->commit();
-        } catch (\Throwable $e) { $this->pdo->rollBack(); throw $e; }
-        return $this->get($businessId,$id);
-    }
-
-    /** @return array<string,mixed> */
-    public function convert(string $businessId,string $id): array
-    {
-        $this->pdo->beginTransaction();
-        try {
-            $existing=$this->pdo->prepare("SELECT id FROM sales_documents WHERE business_id=? AND source_document_id=? AND document_type='invoice' LIMIT 1"); $existing->execute([$businessId,$id]); $found=$existing->fetch();
-            if ($found) { $this->pdo->commit(); return $this->get($businessId,(string)$found['id'],false); }
-            $source=$this->owned($businessId,$id,true);
-            if ($source['document_type']!=='proforma'||$source['lifecycle_status']!=='issued'||$source['settlement_status']!=='paid'||(int)$source['paid_amount_base_unit']!==(int)$source['grand_total_base_unit']) throw new SalesValidationException('proforma_not_fully_paid',409);
-            $settings=json_decode((string)$source['settings_snapshot_json'],true,32,JSON_THROW_ON_ERROR)['settings'];
-            $invoiceId=Uuid::v4(); $now=gmdate('Y-m-d H:i:s'); $number=$this->nextNumber($businessId,'invoice',$settings);
-            $stmt=$this->pdo->prepare("INSERT INTO sales_documents (id,business_id,customer_id,document_type,lifecycle_status,settlement_status,document_number,source_document_id,currency_unit,subtotal_base_unit,discount_base_unit,surcharge_base_unit,grand_total_base_unit,paid_amount_base_unit,settings_snapshot_json,customer_snapshot_json,created_at,updated_at,issued_at) VALUES (?,?,?,'invoice','issued','paid',?,?,?,?,?,?,?,?,?,?,?,?,?)");
-            $stmt->execute([$invoiceId,$businessId,$source['customer_id'],$number,$id,$source['currency_unit'],$source['subtotal_base_unit'],$source['discount_base_unit'],$source['surcharge_base_unit'],$source['grand_total_base_unit'],$source['grand_total_base_unit'],$source['settings_snapshot_json'],$source['customer_snapshot_json'],$now,$now,$now]);
-            $copy=$this->pdo->prepare('INSERT INTO sales_document_items (id,document_id,position,title,description,quantity_milli,unit_price_base_unit,line_total_base_unit,created_at,updated_at) SELECT UUID(),?,position,title,description,quantity_milli,unit_price_base_unit,line_total_base_unit,?,? FROM sales_document_items WHERE document_id=?'); $copy->execute([$invoiceId,$now,$now,$id]);
-            $full=$this->documentSnapshot($businessId,$invoiceId);
-            $this->pdo->prepare('INSERT INTO sales_document_snapshots (id,document_id,version,snapshot_json,created_at) VALUES (?,?,?,?,?)')->execute([Uuid::v4(),$invoiceId,1,json_encode($full,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR),$now]);
-            $this->pdo->commit();
-        } catch (\Throwable $e) { $this->pdo->rollBack(); throw $e; }
-        return $this->get($businessId,$invoiceId,false);
-    }
-
-    /** @return array<string,mixed> */
-    public function get(string $businessId,string $id,bool $includePayments=true): array
-    {
-        $doc=$this->owned($businessId,$id); $items=$this->items($id); $payments=[];
-        if ($includePayments && $doc['document_type']==='proforma') { $s=$this->pdo->prepare("SELECT id,amount_base_unit,paid_at,method,reference_text,note,status FROM payments WHERE business_id=? AND proforma_id=? ORDER BY paid_at,id"); $s->execute([$businessId,$id]); $payments=$s->fetchAll(); }
-        return $this->present($doc,$items,$payments);
-    }
-
-    /** @return list<array<string,mixed>> */
-    public function list(string $businessId): array { $s=$this->pdo->prepare('SELECT id FROM sales_documents WHERE business_id=? ORDER BY created_at DESC LIMIT 50');$s->execute([$businessId]);return array_map(fn($r)=>$this->get($businessId,(string)$r['id'],false),$s->fetchAll()); }
-    /** @return array<string,mixed> */
-    private function owned(string $businessId,string $id,bool $lock=false): array { $s=$this->pdo->prepare('SELECT d.*,c.display_name AS customer_name FROM sales_documents d INNER JOIN customers c ON c.id=d.customer_id AND c.business_id=d.business_id WHERE d.id=? AND d.business_id=?'.($lock?' FOR UPDATE':''));$s->execute([$id,$businessId]);$r=$s->fetch();if(!$r)throw new SalesValidationException('document_not_found',404);return $r; }
-    /** @return list<array<string,mixed>> */
-    private function items(string $id): array { $s=$this->pdo->prepare('SELECT title,description,quantity_milli AS quantityMilli,unit_price_base_unit AS unitPriceBaseUnit,line_total_base_unit AS lineTotalBaseUnit,position FROM sales_document_items WHERE document_id=? ORDER BY position');$s->execute([$id]);return $s->fetchAll(); }
-    /** @param list<array<string,mixed>> $items */
-    private function replaceItems(string $id,array $items,string $now):void{$this->pdo->prepare('DELETE FROM sales_document_items WHERE document_id=?')->execute([$id]);$s=$this->pdo->prepare('INSERT INTO sales_document_items (id,document_id,position,title,description,quantity_milli,unit_price_base_unit,line_total_base_unit,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)');foreach($items as $i)$s->execute([Uuid::v4(),$id,$i['position'],$i['title'],$i['description'],$i['quantityMilli'],$i['unitPriceBaseUnit'],$i['lineTotalBaseUnit'],$now,$now]);}
-    /** @param array<string,mixed> $customer */
-    private function upsertCustomer(string $businessId,array $customer,string $name,string $now):string{$id=$customer['id']??null;if(is_string($id)&&$id!==''){$this->customer($businessId,$id);return $id;}$id=Uuid::v4();$this->pdo->prepare('INSERT INTO customers (id,business_id,display_name,phone,created_at,updated_at) VALUES (?,?,?,?,?,?)')->execute([$id,$businessId,$name,substr(trim((string)($customer['phone']??'')),0,32),$now,$now]);return $id;}
-    /** @return array<string,mixed> */
-    private function customer(string $businessId,string $id):array{$s=$this->pdo->prepare('SELECT id,display_name AS displayName,phone FROM customers WHERE id=? AND business_id=?');$s->execute([$id,$businessId]);$r=$s->fetch();if(!$r)throw new SalesValidationException('customer_not_found',404);return $r;}
-    /** @param array<string,mixed> $settings */
-    private function nextNumber(string $businessId,string $type,array $settings):string{$this->pdo->prepare("INSERT INTO document_sequences (business_id,document_type,next_value) VALUES (?,?,1) ON DUPLICATE KEY UPDATE next_value=next_value")->execute([$businessId,$type]);$s=$this->pdo->prepare('SELECT next_value FROM document_sequences WHERE business_id=? AND document_type=? FOR UPDATE');$s->execute([$businessId,$type]);$n=(int)$s->fetchColumn();$this->pdo->prepare('UPDATE document_sequences SET next_value=next_value+1 WHERE business_id=? AND document_type=?')->execute([$businessId,$type]);$d=$settings['document']??[];$prefix=$type==='proforma'?($d['proformaPrefix']??'PF'):($d['invoicePrefix']??'INV');return (string)$prefix.'-'.str_pad((string)$n,(int)($d['numberPadding']??5),'0',STR_PAD_LEFT);}
-    /** @return array<string,mixed> */
-    private function documentSnapshot(string $businessId,string $id):array{$d=$this->owned($businessId,$id);return ['document'=>$d,'items'=>$this->items($id)];}
-    /** @param array<string,mixed> $doc @param list<array<string,mixed>> $items @param list<array<string,mixed>> $payments @return array<string,mixed> */
-    private function present(array $doc,array $items,array $payments):array{$total=(int)$doc['grand_total_base_unit'];$paid=(int)$doc['paid_amount_base_unit'];$out=['id'=>$doc['id'],'customerId'=>$doc['customer_id'],'customerName'=>$doc['customer_name'],'documentType'=>$doc['document_type'],'lifecycleStatus'=>$doc['lifecycle_status'],'settlementStatus'=>$doc['settlement_status'],'documentNumber'=>$doc['document_number'],'sourceDocumentId'=>$doc['source_document_id'],'currencyUnit'=>$doc['currency_unit'],'subtotalBaseUnit'=>(string)$doc['subtotal_base_unit'],'discountBaseUnit'=>(string)$doc['discount_base_unit'],'surchargeBaseUnit'=>(string)$doc['surcharge_base_unit'],'grandTotalBaseUnit'=>(string)$total,'paidAmountBaseUnit'=>(string)$paid,'remainingAmountBaseUnit'=>(string)max(0,$total-$paid),'version'=>(int)$doc['version'],'items'=>$items,'canIssueFinalInvoice'=>$doc['document_type']==='proforma'&&$doc['lifecycle_status']==='issued'&&$paid===$total];if($doc['document_type']==='proforma')$out['payments']=$payments;return $out;}
-    /** @param array<string,mixed> $input @param list<string> $allowed */
-    private static function keys(array $input,array $allowed):void{foreach(array_keys($input) as $key)if(!in_array($key,$allowed,true))throw new SalesValidationException('unknown_field_'.$key);}
+use PDO;use Tinv\Settings\DocumentSettingsSnapshot;use Tinv\Settings\SettingsRepository;use Tinv\Settings\SettingsSchema;use Tinv\Support\Uuid;
+final readonly class SalesDocumentService{
+ public function __construct(private PDO $pdo,private SettingsRepository $settings){}
+ public function createDraft(string $b,array $in):array{
+  self::keys($in,['documentType','customer','items','settingsOverrides','isOfficial','address','shippingMethod','validityDays','notes']);$type=$in['documentType']??'proforma';if(!in_array($type,['proforma','invoice'],true))throw new SalesValidationException('document_type_invalid');$c=$in['customer']??null;if(!is_array($c))throw new SalesValidationException('customer_required');self::keys($c,['id','displayName','phone','nationalId']);$name=self::text($c['displayName']??'',160,'customer_name',true);$phone=trim((string)($c['phone']??''));CustomerDirectory::mobile($phone);$official=($in['isOfficial']??false)===true;$national=CustomerDirectory::nationalId((string)($c['nationalId']??''),$official);$address=self::text($in['address']??'',500,'customer_address');$notes=self::text($in['notes']??'',2000,'notes');$shipping=(string)($in['shippingMethod']??'');if(!in_array($shipping,['','pickup','snapp_box','snapp_car','snapp_van','post','tipax'],true))throw new SalesValidationException('shipping_method_invalid');$validity=$in['validityDays']??null;if($validity!==null&&(!is_int($validity)||$validity<0||$validity>365))throw new SalesValidationException('validity_days_invalid');if($type==='invoice')$validity=null;$items=$in['items']??[];if(!is_array($items)||!array_is_list($items))throw new SalesValidationException('items_invalid');$settings=$this->settings->find($b)['settings']??SettingsSchema::defaults();$over=$in['settingsOverrides']??[];if(!is_array($over))throw new SalesValidationException('settings_overrides_invalid');$settings=SettingsSchema::mergeForDocument($settings,$over);$rate=$official?(int)($settings['financial']['taxRateBasisPoints']??1000):0;$tot=Money::calculate($items,0,0,$rate);$now=gmdate('Y-m-d H:i:s');$id=Uuid::v4();$this->pdo->beginTransaction();try{$cid=$this->resolveCustomer($b,$c,$name,$phone,$now);$sql='INSERT INTO sales_documents (id,business_id,customer_id,document_type,is_official,national_id,customer_address,shipping_method,validity_days,notes,tax_rate_basis_points,tax_total_base_unit,currency_unit,subtotal_base_unit,discount_base_unit,surcharge_base_unit,grand_total_base_unit,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)';$this->pdo->prepare($sql)->execute([$id,$b,$cid,$type,$official?1:0,$national,$address,$shipping,$validity,$notes,$rate,$tot['tax'],'rial',$tot['subtotal'],$tot['discount'],0,$tot['total'],$now,$now]);$this->replaceItems($id,$tot['items'],$now);$this->pdo->commit();}catch(\Throwable $e){$this->pdo->rollBack();throw$e;}return$this->get($b,$id);
+ }
+ public function updateDraft(string $b,string $id,array $in):array{self::keys($in,['items','version']);$d=$this->owned($b,$id);if($d['lifecycle_status']!=='draft')throw new SalesValidationException('finalized_document_immutable',409);$v=Money::amount($in['version']??null,'version');$items=$in['items']??$this->items($id);if(!is_array($items))throw new SalesValidationException('items_invalid');$tot=Money::calculate(array_values($items),0,0,(int)$d['tax_rate_basis_points']);$now=gmdate('Y-m-d H:i:s');$this->pdo->beginTransaction();try{$s=$this->pdo->prepare("UPDATE sales_documents SET subtotal_base_unit=?,discount_base_unit=?,surcharge_base_unit=0,tax_total_base_unit=?,grand_total_base_unit=?,version=version+1,updated_at=? WHERE id=? AND business_id=? AND lifecycle_status='draft' AND version=?");$s->execute([$tot['subtotal'],$tot['discount'],$tot['tax'],$tot['total'],$now,$id,$b,$v]);if($s->rowCount()!==1)throw new SalesValidationException('draft_version_conflict',409);$this->replaceItems($id,$tot['items'],$now);$this->pdo->commit();}catch(\Throwable $e){$this->pdo->rollBack();throw$e;}return$this->get($b,$id);}
+ public function finalize(string $b,string $id,bool $paid=false):array{$this->pdo->beginTransaction();try{$d=$this->owned($b,$id,true);if($d['lifecycle_status']==='issued'){$this->pdo->commit();return$this->get($b,$id);}if($d['lifecycle_status']!=='draft')throw new SalesValidationException('document_not_finalizable',409);if((int)$d['grand_total_base_unit']<1)throw new SalesValidationException('document_total_required');if($d['document_type']==='invoice'&&!$paid)throw new SalesValidationException('full_payment_confirmation_required');$set=$this->settings->find($b)['settings']??SettingsSchema::defaults();$c=$this->customer($b,(string)$d['customer_id']);$number=$this->nextNumber($b,(string)$d['document_type'],$set);$amount=$d['document_type']==='invoice'?(int)$d['grand_total_base_unit']:0;$now=gmdate('Y-m-d H:i:s');$today=JalaliDate::today();$until=$d['validity_days']!==null?JalaliDate::plusDays($today['date'],(int)$d['validity_days']):null;$snap=$c+['address'=>$d['customer_address'],'isOfficial'=>(bool)$d['is_official'],'nationalId'=>$d['national_id']];$s=$this->pdo->prepare("UPDATE sales_documents SET lifecycle_status='issued',settlement_status=?,document_number=?,paid_amount_base_unit=?,settings_snapshot_json=?,customer_snapshot_json=?,issue_date=?,valid_until=?,version=version+1,issued_at=?,updated_at=? WHERE id=? AND business_id=? AND lifecycle_status='draft'");$s->execute([$amount?'paid':'unpaid',$number,$amount,DocumentSettingsSnapshot::toJson($set),json_encode($snap,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),$today['date'],$until['date']??null,$now,$now,$id,$b]);$this->snapshot($b,$id,$now);$this->pdo->commit();}catch(\Throwable $e){$this->pdo->rollBack();throw$e;}return$this->get($b,$id);}
+ public function recordPayment(string $b,string $id,array $in):array{self::keys($in,['amountBaseUnit','paidAt','method','reference','note','idempotencyKey']);$a=Money::amount($in['amountBaseUnit']??null,'payment_amount');if($a<1)throw new SalesValidationException('payment_amount_invalid');$key=trim((string)($in['idempotencyKey']??''));if($key===''||strlen($key)>100)throw new SalesValidationException('idempotency_key_invalid');$this->pdo->beginTransaction();try{$p=$this->pdo->prepare('SELECT id FROM payments WHERE business_id=? AND idempotency_key=? LIMIT 1');$p->execute([$b,$key]);if($p->fetch()){$this->pdo->commit();return$this->get($b,$id);}$d=$this->owned($b,$id,true);if($d['document_type']!=='proforma'||$d['lifecycle_status']!=='issued')throw new SalesValidationException('payment_requires_issued_proforma',409);$old=(int)$d['paid_amount_base_unit'];$total=(int)$d['grand_total_base_unit'];if($a>$total-$old)throw new SalesValidationException('overpayment_rejected',409);$pid=Uuid::v4();$now=gmdate('Y-m-d H:i:s');$this->pdo->prepare('INSERT INTO payments (id,business_id,proforma_id,amount_base_unit,paid_at,method,reference_text,note,idempotency_key,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)')->execute([$pid,$b,$id,$a,(string)($in['paidAt']??$now),substr((string)($in['method']??'manual'),0,32),substr((string)($in['reference']??''),0,160),substr((string)($in['note']??''),0,500),$key,$now]);$this->pdo->prepare('INSERT INTO payment_allocations (payment_id,document_id,amount_base_unit,created_at) VALUES (?,?,?,?)')->execute([$pid,$id,$a,$now]);$next=$old+$a;$this->pdo->prepare('UPDATE sales_documents SET paid_amount_base_unit=?,settlement_status=?,version=version+1,updated_at=? WHERE id=? AND business_id=?')->execute([$next,$next===$total?'paid':'partial',$now,$id,$b]);$this->pdo->commit();}catch(\Throwable $e){$this->pdo->rollBack();throw$e;}return$this->get($b,$id);}
+ public function convert(string $b,string $id):array{$this->pdo->beginTransaction();try{$q=$this->pdo->prepare("SELECT id FROM sales_documents WHERE business_id=? AND source_document_id=? AND document_type='invoice' LIMIT 1");$q->execute([$b,$id]);if($f=$q->fetch()){$this->pdo->commit();return$this->get($b,(string)$f['id'],false);}$d=$this->owned($b,$id,true);if($d['document_type']!=='proforma'||$d['lifecycle_status']!=='issued'||$d['settlement_status']!=='paid'||(int)$d['paid_amount_base_unit']!==(int)$d['grand_total_base_unit'])throw new SalesValidationException('proforma_not_fully_paid',409);$set=json_decode((string)$d['settings_snapshot_json'],true,32,JSON_THROW_ON_ERROR)['settings'];$iid=Uuid::v4();$now=gmdate('Y-m-d H:i:s');$number=$this->nextNumber($b,'invoice',$set);$today=JalaliDate::today();$sql="INSERT INTO sales_documents (id,business_id,customer_id,document_type,lifecycle_status,settlement_status,document_number,source_document_id,is_official,national_id,customer_address,shipping_method,notes,issue_date,tax_rate_basis_points,tax_total_base_unit,currency_unit,subtotal_base_unit,discount_base_unit,surcharge_base_unit,grand_total_base_unit,paid_amount_base_unit,settings_snapshot_json,customer_snapshot_json,created_at,updated_at,issued_at) VALUES (?,?,?,'invoice','issued','paid',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";$this->pdo->prepare($sql)->execute([$iid,$b,$d['customer_id'],$number,$id,$d['is_official'],$d['national_id'],$d['customer_address'],$d['shipping_method'],$d['notes'],$today['date'],$d['tax_rate_basis_points'],$d['tax_total_base_unit'],$d['currency_unit'],$d['subtotal_base_unit'],$d['discount_base_unit'],$d['surcharge_base_unit'],$d['grand_total_base_unit'],$d['grand_total_base_unit'],$d['settings_snapshot_json'],$d['customer_snapshot_json'],$now,$now,$now]);$this->pdo->prepare('INSERT INTO sales_document_items (id,document_id,position,title,description,quantity_milli,unit_price_base_unit,discount_base_unit,tax_base_unit,line_total_base_unit,created_at,updated_at) SELECT UUID(),?,position,title,description,quantity_milli,unit_price_base_unit,discount_base_unit,tax_base_unit,line_total_base_unit,?,? FROM sales_document_items WHERE document_id=?')->execute([$iid,$now,$now,$id]);$this->snapshot($b,$iid,$now);$this->pdo->commit();}catch(\Throwable $e){$this->pdo->rollBack();throw$e;}return$this->get($b,$iid,false);}
+ public function get(string $b,string $id,bool $payments=true):array{$d=$this->owned($b,$id);$items=$this->items($id);$p=[];if($payments&&$d['document_type']==='proforma'){$s=$this->pdo->prepare("SELECT id,amount_base_unit,paid_at,method,reference_text,note,status FROM payments WHERE business_id=? AND proforma_id=? ORDER BY paid_at,id");$s->execute([$b,$id]);$p=$s->fetchAll();}return$this->present($d,$items,$p);}
+ public function list(string $b):array{$s=$this->pdo->prepare('SELECT id FROM sales_documents WHERE business_id=? ORDER BY created_at DESC LIMIT 50');$s->execute([$b]);return array_map(fn($r)=>$this->get($b,(string)$r['id'],false),$s->fetchAll());}
+ private function resolveCustomer(string $b,array $c,string $name,string $phone,string $now):string{$id=$c['id']??null;if(is_string($id)&&$id!==''){$this->customer($b,$id);return$id;}CustomerDirectory::mobile($phone);$id=Uuid::v4();$this->pdo->prepare('INSERT INTO customers (id,business_id,display_name,phone,normalized_mobile,created_at,updated_at) VALUES (?,?,?,?,NULL,?,?)')->execute([$id,$b,$name,$phone,$now,$now]);return$id;}
+ private function customer(string $b,string $id):array{$s=$this->pdo->prepare('SELECT id,display_name AS displayName,phone,normalized_mobile AS normalizedMobile,address,is_official AS isOfficial,national_id AS nationalId FROM customers WHERE id=? AND business_id=?');$s->execute([$id,$b]);$r=$s->fetch();if(!$r)throw new SalesValidationException('customer_not_found',404);$r['isOfficial']=(bool)$r['isOfficial'];return$r;}
+ private function owned(string $b,string $id,bool $lock=false):array{$s=$this->pdo->prepare('SELECT d.*,c.display_name AS customer_name,c.phone AS customer_phone FROM sales_documents d INNER JOIN customers c ON c.id=d.customer_id AND c.business_id=d.business_id WHERE d.id=? AND d.business_id=?'.($lock?' FOR UPDATE':''));$s->execute([$id,$b]);$r=$s->fetch();if(!$r)throw new SalesValidationException('document_not_found',404);return$r;}
+ private function items(string $id):array{$s=$this->pdo->prepare('SELECT title,description,quantity_milli AS quantityMilli,unit_price_base_unit AS unitPriceBaseUnit,discount_base_unit AS discountBaseUnit,tax_base_unit AS taxBaseUnit,line_total_base_unit AS lineTotalBaseUnit,position FROM sales_document_items WHERE document_id=? ORDER BY position');$s->execute([$id]);return$s->fetchAll();}
+ private function replaceItems(string $id,array $items,string $now):void{$this->pdo->prepare('DELETE FROM sales_document_items WHERE document_id=?')->execute([$id]);$s=$this->pdo->prepare('INSERT INTO sales_document_items (id,document_id,position,title,description,quantity_milli,unit_price_base_unit,discount_base_unit,tax_base_unit,line_total_base_unit,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)');foreach($items as$i)$s->execute([Uuid::v4(),$id,$i['position'],$i['title'],$i['description'],$i['quantityMilli'],$i['unitPriceBaseUnit'],$i['discountBaseUnit'],$i['taxBaseUnit'],$i['lineTotalBaseUnit'],$now,$now]);}
+ private function nextNumber(string $b,string $type,array $set):string{$this->pdo->prepare("INSERT INTO document_sequences (business_id,document_type,next_value) VALUES (?,?,1) ON DUPLICATE KEY UPDATE next_value=next_value")->execute([$b,$type]);$s=$this->pdo->prepare('SELECT next_value FROM document_sequences WHERE business_id=? AND document_type=? FOR UPDATE');$s->execute([$b,$type]);$n=(int)$s->fetchColumn();$this->pdo->prepare('UPDATE document_sequences SET next_value=next_value+1 WHERE business_id=? AND document_type=?')->execute([$b,$type]);$d=$set['document']??[];$prefix=$type==='proforma'?($d['proformaPrefix']??'PF'):($d['invoicePrefix']??'INV');return(string)$prefix.'-'.str_pad((string)$n,(int)($d['numberPadding']??5),'0',STR_PAD_LEFT);}
+ private function snapshot(string $b,string $id,string $now):void{$full=['document'=>$this->owned($b,$id),'items'=>$this->items($id)];$this->pdo->prepare('INSERT INTO sales_document_snapshots (id,document_id,version,snapshot_json,created_at) VALUES (?,?,?,?,?)')->execute([Uuid::v4(),$id,1,json_encode($full,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR),$now]);}
+ private function present(array $d,array $items,array $p):array{$total=(int)$d['grand_total_base_unit'];$paid=(int)$d['paid_amount_base_unit'];$date=$d['issue_date']?JalaliDate::format(new \DateTimeImmutable($d['issue_date'])):null;$until=$d['valid_until']?JalaliDate::format(new \DateTimeImmutable($d['valid_until'])):null;$out=['id'=>$d['id'],'customerId'=>$d['customer_id'],'customerName'=>$d['customer_name'],'customerPhone'=>$d['customer_phone'],'documentType'=>$d['document_type'],'lifecycleStatus'=>$d['lifecycle_status'],'settlementStatus'=>$d['settlement_status'],'documentNumber'=>$d['document_number'],'sourceDocumentId'=>$d['source_document_id'],'isOfficial'=>(bool)$d['is_official'],'nationalId'=>$d['national_id'],'customerAddress'=>$d['customer_address'],'shippingMethod'=>$d['shipping_method'],'validityDays'=>$d['validity_days']!==null?(int)$d['validity_days']:null,'notes'=>$d['notes'],'issueDate'=>$date,'validUntil'=>$until,'taxRateBasisPoints'=>(int)$d['tax_rate_basis_points'],'taxTotalBaseUnit'=>(string)$d['tax_total_base_unit'],'currencyUnit'=>$d['currency_unit'],'subtotalBaseUnit'=>(string)$d['subtotal_base_unit'],'discountBaseUnit'=>(string)$d['discount_base_unit'],'surchargeBaseUnit'=>(string)$d['surcharge_base_unit'],'grandTotalBaseUnit'=>(string)$total,'paidAmountBaseUnit'=>(string)$paid,'remainingAmountBaseUnit'=>(string)max(0,$total-$paid),'version'=>(int)$d['version'],'items'=>$items,'canIssueFinalInvoice'=>$d['document_type']==='proforma'&&$d['lifecycle_status']==='issued'&&$paid===$total];if($d['document_type']==='proforma')$out['payments']=$p;return$out;}
+ private static function text(mixed $v,int $max,string $field,bool $required=false):string{$v=trim((string)$v);if(($required&&$v==='')||mb_strlen($v)>$max||str_contains($v,'<'))throw new SalesValidationException($field.'_invalid');return$v;}
+ private static function keys(array $in,array $allowed):void{foreach(array_keys($in)as$key)if(!in_array($key,$allowed,true))throw new SalesValidationException('unknown_field_'.$key);}
 }

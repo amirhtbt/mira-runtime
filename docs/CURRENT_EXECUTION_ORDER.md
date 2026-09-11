@@ -6,9 +6,9 @@ Default branch: `main`
 
 ## Current gate
 
-**G05 — Dedicated template catalogue: three structural A4-landscape layouts + colour themes**
-GitHub Issue: #6
-State: **ACTIVE — OWNER-REQUESTED VISUAL CORRECTION IN PROGRESS**. The earlier six-template/two-orientation acceptance target is superseded. Issue #6 stays open and G06 stays inactive.
+**G04.1 — Complete New Document builder before export**
+GitHub Issue: #57
+State: **ACTIVE — IMPLEMENTATION IN PROGRESS**. G05 is owner-accepted and closed. G06 stays inactive until the one-page builder, reusable customer directory and authoritative official/unofficial VAT contract pass CI, staging and Human Acceptance.
 
 G00 / Issue #1 through G04 / Issue #5 are accepted and must not be reopened unless a regression, new platform constraint or explicit owner decision is documented.
 
@@ -85,13 +85,14 @@ G00 / Issue #1 through G04 / Issue #5 are accepted and must not be reopened unle
 3. #3 — G02: Animated RTL app shell and design system — PASS / CLOSED (real iOS deferred to G08)
 4. #4 — G03: Seller profile and configurable invoice settings — PASS / CLOSED (real iOS deferred to G08)
 5. #5 — G04: Deterministic sales-document engine and draft workflow — PASS / CLOSED
-6. #6 — G05: Dedicated Templates tab, three structural A4-landscape layouts and colour themes — ACTIVE / VISUAL CORRECTION
-7. #7 — G06: Persian image/PDF export and Telegram sharing — INACTIVE
-8. #8 — G07: Invoice history, search, duplicate and lightweight reuse
-9. #9 — G08: Production security, performance and deployment hardening
-10. #10 — G09: Free pilot, analytics and user feedback
-11. #11 — G10: Product-market-fit review and expansion decision
-12. #12 — G11: Web/paid migration foundation after positive G10
+6. #6 — G05: Dedicated Templates tab, three structural A4-landscape layouts and colour themes — PASS / CLOSED
+7. #57 — G04.1: Complete one-page New Document builder and reusable customer profiles — ACTIVE
+8. #7 — G06: Persian image/PDF export and Telegram sharing — INACTIVE
+9. #8 — G07: Invoice history, search, duplicate and lightweight reuse
+10. #9 — G08: Production security, performance and deployment hardening
+11. #10 — G09: Free pilot, analytics and user feedback
+12. #11 — G10: Product-market-fit review and expansion decision
+13. #12 — G11: Web/paid migration foundation after positive G10
 
 ## Source of Truth priority
 
@@ -143,4 +144,4 @@ For sales-document boundaries, also read `docs/SALES_DOCUMENT_DOMAIN.md` before 
 
 ## Immediate next action
 
-Complete, deploy and visually verify the owner-approved G05 correction: a leftmost fifth `قالب‌ها` tab, three genuinely different A4-landscape layouts, separate colour themes, persisted active selection, full preview with zoom and external explanation, and no template picker in Settings. Do not close Issue #6 or activate G06 until explicit Android/Desktop acceptance. Real iOS remains mandatory in G08 before G09.
+Complete, deploy and visually verify Issue #57. Do not activate G06 until the owner accepts the single-scroll document builder, reusable customer lookup/save, multiple items, official/unofficial VAT, Jalali dates and generated-document actions on Android/Desktop. Real iOS remains mandatory in G08 before G09.

@@ -12,6 +12,8 @@ use Tinv\Database;
 use Tinv\Sales\Money;
 use Tinv\Sales\SalesDocumentService;
 use Tinv\Sales\SalesValidationException;
+use Tinv\Sales\CustomerDirectory;
+use Tinv\Sales\JalaliDate;
 use Tinv\Session\SessionService;
 use Tinv\Settings\SettingsRepository;
 use Tinv\Settings\SettingsService;
@@ -33,6 +35,25 @@ Test::run('G04 integer-only deterministic money calculation',function():void{
     Test::throws(fn()=>Money::amount('1.5','amount'),SalesValidationException::class,'amount_invalid');
 });
 
+Test::run('G04.1 normalizes Iranian mobiles and isolates reusable customers',function()use($pdo,$one,$two):void{
+    Test::equals('09121234567',CustomerDirectory::mobile('+98 912 123 4567'));
+    $directory=new CustomerDirectory($pdo);
+    $saved=$directory->save($one->context->businessId,['displayName'=>'شرکت مشتری','phone'=>'+989121234567','address'=>'تهران','isOfficial'=>true,'nationalId'=>'1234567890']);
+    Test::equals($saved['id'],$directory->search($one->context->businessId,'09121234567')[0]['id']);
+    Test::equals(0,count($directory->search($two->context->businessId,'09121234567')));
+    Test::throws(fn()=>$directory->save($one->context->businessId,['displayName'=>'تکراری','phone'=>'09121234567','isOfficial'=>false]),SalesValidationException::class,'customer_mobile_exists');
+});
+
+Test::run('G04.1 official VAT is deterministic per line and unofficial remains zero',function():void{
+    $official=Money::calculate([['title'=>'کالا','quantityMilli'=>'2000','unitPriceBaseUnit'=>'1000000','discountBaseUnit'=>'100000']],0,0,1000);
+    Test::equals(2000000,$official['subtotal']);Test::equals(190000,$official['tax']);Test::equals(2090000,$official['total']);
+    $unofficial=Money::calculate([['title'=>'کالا','quantityMilli'=>'2000','unitPriceBaseUnit'=>'1000000']],0,0,0);Test::equals(0,$unofficial['tax']);
+});
+
+Test::run('G04.1 Jalali issue and expiry dates cross boundaries correctly',function():void{
+    $end=JalaliDate::plusDays('2026-03-20',1);Test::equals('1405/01/01',$end['jalali']);
+});
+
 $proforma=null; $invoice=null;
 Test::run('G04 creates and recovers a proforma draft with stable customer',function()use($service,$one,&$proforma):void{
     $proforma=$service->createDraft($one->context->businessId,['documentType'=>'proforma','customer'=>['displayName'=>'مشتری نمونه','phone'=>'09120000000'],'items'=>[['title'=>'سفارش کامل','quantityMilli'=>'1000','unitPriceBaseUnit'=>'10000000']]]);
@@ -48,7 +69,7 @@ Test::run('G04 optimistic version prevents stale draft overwrite',function()use(
 
 Test::run('G04 tenant and customer scope prevent cross-business access',function()use($service,$one,$two,&$proforma):void{
     Test::throws(fn()=>$service->get($two->context->businessId,$proforma['id']),SalesValidationException::class,'document_not_found');
-    Test::throws(fn()=>$service->createDraft($two->context->businessId,['documentType'=>'proforma','customer'=>['id'=>$proforma['customerId'],'displayName'=>'tamper'],'items'=>[['title'=>'x','quantityMilli'=>'1000','unitPriceBaseUnit'=>'1']]]),SalesValidationException::class,'customer_not_found');
+    Test::throws(fn()=>$service->createDraft($two->context->businessId,['documentType'=>'proforma','customer'=>['id'=>$proforma['customerId'],'displayName'=>'tamper','phone'=>'09121111111'],'items'=>[['title'=>'x','quantityMilli'=>'1000','unitPriceBaseUnit'=>'1']]]),SalesValidationException::class,'customer_not_found');
 });
 
 Test::run('G04 finalizes immutable proforma with settings snapshot',function()use($service,$settings,$one,&$proforma,$now):void{
@@ -74,7 +95,7 @@ Test::run('G04 converts once and final invoice omits installment breakdown',func
 });
 
 Test::run('G04 direct invoice requires explicit full-payment confirmation',function()use($service,$one):void{
-    $draft=$service->createDraft($one->context->businessId,['documentType'=>'invoice','customer'=>['displayName'=>'خریدار نقدی'],'items'=>[['title'=>'فروش نقدی','quantityMilli'=>'1000','unitPriceBaseUnit'=>'2500000']]]);
+    $draft=$service->createDraft($one->context->businessId,['documentType'=>'invoice','customer'=>['displayName'=>'خریدار نقدی','phone'=>'09120000001'],'items'=>[['title'=>'فروش نقدی','quantityMilli'=>'1000','unitPriceBaseUnit'=>'2500000']]]);
     Test::throws(fn()=>$service->finalize($one->context->businessId,$draft['id']),SalesValidationException::class,'full_payment_confirmation_required');
     $final=$service->finalize($one->context->businessId,$draft['id'],true); Test::equals(null,$final['sourceDocumentId']); Test::equals('paid',$final['settlementStatus']); Test::assert(!array_key_exists('payments',$final));
 });
