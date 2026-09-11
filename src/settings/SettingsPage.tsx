@@ -36,6 +36,7 @@ export function SettingsPage({ onSummaryChange }: Props) {
   const [state, setState] = useState<'loading' | 'ready' | 'saving' | 'load-error' | 'save-error'>('loading');
   const [message, setMessage] = useState('');
   const [logoBusy, setLogoBusy] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -53,7 +54,7 @@ export function SettingsPage({ onSummaryChange }: Props) {
       }
     })();
     return () => { cancelled = true; };
-  }, [onSummaryChange]);
+  }, [onSummaryChange, loadAttempt]);
 
   const logoUrl = useMemo(() => payload?.logo.present ? businessLogoUrl(payload.logo.updatedAt) : null, [payload?.logo.present, payload?.logo.updatedAt]);
   function patch<K extends keyof BusinessSettings>(section: K, value: Partial<BusinessSettings[K]>) {
@@ -87,7 +88,7 @@ export function SettingsPage({ onSummaryChange }: Props) {
     finally { setLogoBusy(false); }
   }
 
-  if (state === 'load-error') return <section className="settings-feedback error" role="alert"><p>{message}</p></section>;
+  if (state === 'load-error') return <section className="settings-feedback error" role="alert"><p>{message}</p><button type="button" className="secondary-button" onClick={() => setLoadAttempt(value => value + 1)}>تلاش دوباره</button></section>;
   if (state === 'loading' || !draft || !payload) return <section className="settings-loading" role="status"><span className="settings-spinner"/><p>در حال آماده‌کردن تنظیمات…</p></section>;
 
   const s = draft;
