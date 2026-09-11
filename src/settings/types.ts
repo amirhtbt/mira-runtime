@@ -17,6 +17,13 @@ export interface SellerSettings {
   customContactLine: string;
 }
 
+export interface OfficialSellerSettings {
+  companyName: string;
+  address: string;
+  phone: string;
+  nationalId: string;
+}
+
 export interface PaymentSettings {
   accounts?: Array<{cardNumber:string;sheba:string;bankName:string;accountHolder:string}>;
   cardNumber: string;
@@ -97,6 +104,8 @@ export interface VisualSettings {
 export interface BusinessSettings {
   seller: SellerSettings;
   payment: PaymentSettings;
+  officialSeller: OfficialSellerSettings;
+  officialPayment: PaymentSettings;
   document: DocumentSettings;
   presentation: PresentationSettings;
   items: ItemVisibilitySettings;
@@ -120,6 +129,7 @@ export interface SettingsResponse {
   version: number;
   updatedAt: string | null;
   logo: LogoMetadata;
+  officialLogo: LogoMetadata;
 }
 
 export type DeepPartial<T> = {

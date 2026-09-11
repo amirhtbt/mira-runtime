@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from 'react';
-import { businessLogoUrl, deleteBusinessLogo, getBusinessSettings, updateBusinessSettings, uploadBusinessLogo } from '../api/client';
+import { businessLogoUrl, deleteBusinessLogo, deleteOfficialLogo, getBusinessSettings, officialLogoUrl, updateBusinessSettings, uploadBusinessLogo, uploadOfficialLogo } from '../api/client';
 import type { BusinessSettings, CustomAdjustmentDefault, SettingsResponse } from './types';
 
 interface Summary { businessName?: string; settingsComplete: boolean }
@@ -28,7 +28,8 @@ function Toggle({ label, checked, onChange, description }: { label: string; chec
   return <label className="toggle-row"><span><strong>{label}</strong>{description && <small>{description}</small>}</span><input type="checkbox" checked={checked} onChange={event => onChange(event.target.checked)} /></label>;
 }
 
-function clone(settings: BusinessSettings): BusinessSettings { return JSON.parse(JSON.stringify(settings)) as BusinessSettings; }
+const emptyPayment={accounts:[],cardNumber:'',accountNumber:'',sheba:'',bankName:'',accountHolder:'',instructions:''};
+function clone(settings: BusinessSettings): BusinessSettings { const copy=JSON.parse(JSON.stringify(settings)) as BusinessSettings;return{...copy,officialSeller:copy.officialSeller??{companyName:'',address:'',phone:'',nationalId:''},officialPayment:copy.officialPayment??{...emptyPayment,accounts:[]}}; }
 
 export function SettingsPage({ onSummaryChange }: Props) {
   const [payload, setPayload] = useState<SettingsResponse | null>(null);
@@ -57,6 +58,7 @@ export function SettingsPage({ onSummaryChange }: Props) {
   }, [onSummaryChange, loadAttempt]);
 
   const logoUrl = useMemo(() => payload?.logo.present ? businessLogoUrl(payload.logo.updatedAt) : null, [payload?.logo.present, payload?.logo.updatedAt]);
+  const officialLogoSrc = useMemo(() => payload?.officialLogo?.present ? officialLogoUrl(payload.officialLogo.updatedAt) : null, [payload?.officialLogo?.present, payload?.officialLogo?.updatedAt]);
   function patch<K extends keyof BusinessSettings>(section: K, value: Partial<BusinessSettings[K]>) {
     setDraft(current => current ? { ...current, [section]: { ...current[section], ...value } } : current);
   }
@@ -87,6 +89,8 @@ export function SettingsPage({ onSummaryChange }: Props) {
     catch { setMessage('حذف لوگو انجام نشد.'); }
     finally { setLogoBusy(false); }
   }
+  async function officialLogoChanged(event:ChangeEvent<HTMLInputElement>){const file=event.target.files?.[0];event.target.value='';if(!file)return;if(!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>1572864){setMessage('لوگوی رسمی باید PNG، JPEG یا WebP و حداکثر ۱٫۵ مگابایت باشد.');return;}setLogoBusy(true);try{const officialLogo=await uploadOfficialLogo(file);setPayload(current=>current?{...current,officialLogo}:current);setMessage('لوگوی رسمی ذخیره شد.');}catch{setMessage('بارگذاری لوگوی رسمی انجام نشد.');}finally{setLogoBusy(false);}}
+  async function removeOfficialLogo(){setLogoBusy(true);try{const officialLogo=await deleteOfficialLogo();setPayload(current=>current?{...current,officialLogo}:current);setMessage('لوگوی رسمی حذف شد.');}catch{setMessage('حذف لوگوی رسمی انجام نشد.');}finally{setLogoBusy(false);}}
 
   if (state === 'load-error') return <section className="settings-feedback error" role="alert"><p>{message}</p><button type="button" className="secondary-button" onClick={() => setLoadAttempt(value => value + 1)}>تلاش دوباره</button></section>;
   if (state === 'loading' || !draft || !payload) return <section className="settings-loading" role="status"><span className="settings-spinner"/><p>در حال آماده‌کردن تنظیمات…</p></section>;
@@ -99,6 +103,8 @@ export function SettingsPage({ onSummaryChange }: Props) {
   }
   const accounts=s.payment.accounts??[];
   function account(index:number,value:Partial<(typeof accounts)[number]>){patch('payment',{accounts:accounts.map((row,i)=>i===index?{...row,...value}:row)});}
+  const officialAccounts=s.officialPayment.accounts??[];
+  function officialAccount(index:number,value:Partial<(typeof officialAccounts)[number]>){patch('officialPayment',{accounts:officialAccounts.map((row,i)=>i===index?{...row,...value}:row)});}
 
   return <div className="settings-page">
     <section className="settings-intro-card"><div><span className="settings-kicker">شروع سریع</span><h2>اطلاعاتی که روی سند دیده می‌شود</h2><p>برای شروع فقط نام و راه دریافت وجه کافی است. باقی گزینه‌ها اختیاری‌اند.</p></div>
@@ -107,6 +113,8 @@ export function SettingsPage({ onSummaryChange }: Props) {
     </section>
 
     <section className="settings-card payment-card"><div className="settings-card-heading"><div><span className="settings-kicker">دریافت وجه</span><h2>حساب‌های واریزی</h2></div><button type="button" className="text-button" onClick={()=>patch('payment',{accounts:[...accounts,{cardNumber:'',sheba:'',bankName:'',accountHolder:s.payment.accountHolder}]})}>+ افزودن حساب</button></div>{accounts.map((row,index)=><div className="adjustment-row" key={index}><Field label="شماره کارت" value={row.cardNumber} onChange={cardNumber=>account(index,{cardNumber})} dir="ltr" inputMode="numeric" maxLength={24}/><Field label="شماره شبا" value={row.sheba} onChange={sheba=>account(index,{sheba})} dir="ltr" maxLength={32}/><Field label="نام بانک" value={row.bankName} onChange={bankName=>account(index,{bankName})}/><Field label="نام صاحب حساب" value={row.accountHolder} onChange={accountHolder=>account(index,{accountHolder})}/><button type="button" className="text-button danger" onClick={()=>patch('payment',{accounts:accounts.filter((_,i)=>i!==index)})}>حذف</button></div>)}{accounts.length===0&&<p className="settings-muted">هنوز حسابی در فهرست جدید ثبت نشده است؛ اطلاعات قدیمی زیر همچنان روی اسناد نمایش داده می‌شود.</p>}<div className="settings-grid two"><Field label="شماره کارت" value={s.payment.cardNumber} onChange={cardNumber => patch('payment', { cardNumber })} dir="ltr" inputMode="numeric" placeholder="6037 …" maxLength={24}/><Field label="شماره شبا" value={s.payment.sheba} onChange={sheba => patch('payment', { sheba })} dir="ltr" placeholder="IR…" maxLength={32}/><Field label="نام بانک" value={s.payment.bankName} onChange={bankName => patch('payment', { bankName })}/><Field label="شماره حساب" value={s.payment.accountNumber} onChange={accountNumber => patch('payment', { accountNumber })} dir="ltr" inputMode="numeric" maxLength={40}/></div><Field label="توضیح پرداخت" value={s.payment.instructions} onChange={instructions => patch('payment', { instructions })} multiline maxLength={800}/></section>
+
+    <section className="settings-card official-settings"><div className="settings-card-heading"><div><span className="settings-kicker">اسناد رسمی</span><h2>مشخصات شرکت و حساب‌های رسمی</h2><p>این اطلاعات فقط روی سند رسمی استفاده می‌شود و برای صدور رسمی باید کامل باشد.</p></div></div><div className="logo-control"><div className="logo-preview">{officialLogoSrc?<img src={officialLogoSrc} alt="لوگوی رسمی شرکت"/>:<span>ش</span>}</div><div><label className="secondary-button file-button">{payload.officialLogo?.present?'تعویض لوگوی رسمی':'افزودن لوگوی رسمی'}<input type="file" accept="image/png,image/jpeg,image/webp" onChange={officialLogoChanged} disabled={logoBusy}/></label>{payload.officialLogo?.present&&<button type="button" className="text-button danger" onClick={removeOfficialLogo}>حذف</button>}</div></div><div className="settings-grid two"><Field label="نام شرکت *" value={s.officialSeller.companyName} onChange={companyName=>patch('officialSeller',{companyName})}/><Field label="شناسه ملی شرکت *" value={s.officialSeller.nationalId} onChange={nationalId=>patch('officialSeller',{nationalId})} dir="ltr" inputMode="numeric" maxLength={14}/><Field label="تلفن شرکت *" value={s.officialSeller.phone} onChange={phone=>patch('officialSeller',{phone})} dir="ltr" inputMode="tel"/><div className="span-two"><Field label="آدرس شرکت *" value={s.officialSeller.address} onChange={address=>patch('officialSeller',{address})} multiline maxLength={500}/></div></div><div className="settings-card-heading"><h3>حساب‌های رسمی به نام شرکت</h3><button type="button" className="text-button" onClick={()=>patch('officialPayment',{accounts:[...officialAccounts,{cardNumber:'',sheba:'',bankName:'',accountHolder:s.officialSeller.companyName}]})}>+ افزودن حساب رسمی</button></div>{officialAccounts.map((row,index)=><div className="adjustment-row" key={index}><Field label="شماره کارت" value={row.cardNumber} onChange={cardNumber=>officialAccount(index,{cardNumber})} dir="ltr" inputMode="numeric" maxLength={24}/><Field label="شماره شبا *" value={row.sheba} onChange={sheba=>officialAccount(index,{sheba})} dir="ltr" maxLength={32}/><Field label="نام بانک" value={row.bankName} onChange={bankName=>officialAccount(index,{bankName})}/><Field label="نام صاحب حساب *" value={row.accountHolder} onChange={accountHolder=>officialAccount(index,{accountHolder})}/><button type="button" className="text-button danger" onClick={()=>patch('officialPayment',{accounts:officialAccounts.filter((_,i)=>i!==index)})}>حذف</button></div>)}</section>
 
     <div className="advanced-heading"><div><span className="settings-kicker">پیشرفته</span><h2>تنظیمات بیشتر</h2></div><p>فقط وقتی لازم دارید بازشان کنید.</p></div>
 
