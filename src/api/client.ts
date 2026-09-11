@@ -103,6 +103,7 @@ export interface SalesDocument {
   settingsSnapshot?: BusinessSettings;
   logoPresent?: boolean;
   revisionOfDocumentId?:string|null;cancelledAt?:string|null;cancelReason?:string|null;
+  duplicatedFromDocumentId?:string|null;archivedAt?:string|null;
   payments?: Array<{id:string;amount_base_unit:string;paid_at:string;method:string;reference_text:string;note:string;status:string}>;
   canIssueFinalInvoice: boolean;
 }
@@ -118,7 +119,11 @@ export async function createSalesDocumentRevision(id:string):Promise<SalesDocume
 export async function finalizeSalesDocument(id:string,paidConfirmed=false):Promise<SalesDocument>{ return requireData(await request<SalesDocument>(`/api/v1/documents/${encodeURIComponent(id)}/finalize`,{method:'POST',body:JSON.stringify({paidConfirmed})}),'document_finalize_failed'); }
 export async function addProformaPayment(id:string,amountBaseUnit:string,idempotencyKey:string):Promise<SalesDocument>{ return requireData(await request<SalesDocument>(`/api/v1/documents/${encodeURIComponent(id)}/payments`,{method:'POST',body:JSON.stringify({amountBaseUnit,idempotencyKey})}),'payment_failed'); }
 export async function issueFinalInvoice(id:string):Promise<SalesDocument>{ return requireData(await request<SalesDocument>(`/api/v1/documents/${encodeURIComponent(id)}/final-invoice`,{method:'POST',body:'{}'}),'conversion_failed'); }
-export async function listSalesDocuments():Promise<SalesDocument[]>{ return requireData(await request<{documents:SalesDocument[]}>('/api/v1/documents'),'documents_load_failed').documents; }
+export interface DocumentHistoryQuery {query?:string;documentType?:DocumentType|'';lifecycleStatus?:SalesDocument['lifecycleStatus']|'';settlementStatus?:SalesDocument['settlementStatus']|'';customerId?:string;archived?:boolean;cursor?:string;limit?:number}
+export interface DocumentHistoryPage {documents:SalesDocument[];nextCursor:string|null}
+export async function listSalesDocuments(filters:DocumentHistoryQuery={}):Promise<DocumentHistoryPage>{const params=new URLSearchParams();Object.entries(filters).forEach(([key,value])=>{if(value!==''&&value!==undefined&&value!==false)params.set(key,value===true?'1':String(value));});const suffix=params.size?`?${params.toString()}`:'';return requireData(await request<DocumentHistoryPage>(`/api/v1/documents${suffix}`),'documents_load_failed');}
+export async function duplicateSalesDocument(id:string):Promise<SalesDocument>{return requireData(await request<SalesDocument>(`/api/v1/documents/${encodeURIComponent(id)}/duplicate`,{method:'POST',body:'{}'}),'document_duplicate_failed');}
+export async function setSalesDocumentArchived(id:string,archived:boolean):Promise<SalesDocument>{return requireData(await request<SalesDocument>(`/api/v1/documents/${encodeURIComponent(id)}/archive`,{method:'POST',body:JSON.stringify({archived})}),'document_archive_failed');}
 export async function findCustomers(phone:string):Promise<CustomerProfile[]>{return requireData(await request<{customers:CustomerProfile[]}>(`/api/v1/customers?phone=${encodeURIComponent(phone)}`),'customer_search_failed').customers;}
 export async function listCustomers(query=''):Promise<CustomerProfile[]>{return requireData(await request<{customers:CustomerProfile[]}>(`/api/v1/customers?query=${encodeURIComponent(query)}`),'customer_list_failed').customers;}
 export async function saveCustomer(input:Omit<CustomerProfile,'id'|'normalizedMobile'>):Promise<CustomerProfile>{return requireData(await request<CustomerProfile>('/api/v1/customers',{method:'POST',body:JSON.stringify(input)}),'customer_save_failed');}
