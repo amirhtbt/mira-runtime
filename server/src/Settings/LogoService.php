@@ -11,7 +11,12 @@ final readonly class LogoService
     public const MAX_DIMENSION = 2048;
     private const ALLOWED_MIME = ['image/png', 'image/jpeg', 'image/webp'];
 
-    public function __construct(private PDO $pdo) {}
+    private string $table;
+    public function __construct(private PDO $pdo, string $table = 'business_logo_assets')
+    {
+        if (!in_array($table, ['business_logo_assets', 'business_official_logo_assets'], true)) throw new \InvalidArgumentException('invalid_logo_table');
+        $this->table = $table;
+    }
 
     /** @return array{mimeType:string,byteSize:int,width:int,height:int} */
     public static function validateBytes(string $bytes): array
@@ -43,7 +48,7 @@ final readonly class LogoService
         $meta = self::validateBytes($bytes);
         $timestamp = gmdate('Y-m-d H:i:s', $now ?? time());
         $stmt = $this->pdo->prepare(
-            'INSERT INTO business_logo_assets (business_id, mime_type, byte_size, width, height, image_bytes, updated_at) '
+            'INSERT INTO ' . $this->table . ' (business_id, mime_type, byte_size, width, height, image_bytes, updated_at) '
             . 'VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE mime_type = VALUES(mime_type), byte_size = VALUES(byte_size), '
             . 'width = VALUES(width), height = VALUES(height), image_bytes = VALUES(image_bytes), updated_at = VALUES(updated_at)'
         );
@@ -62,7 +67,7 @@ final readonly class LogoService
     /** @return array{mimeType:string,byteSize:int,width:int,height:int,bytes:string,updatedAt:string}|null */
     public function get(string $businessId): ?array
     {
-        $stmt = $this->pdo->prepare('SELECT mime_type, byte_size, width, height, image_bytes, updated_at FROM business_logo_assets WHERE business_id = ? LIMIT 1');
+        $stmt = $this->pdo->prepare('SELECT mime_type, byte_size, width, height, image_bytes, updated_at FROM ' . $this->table . ' WHERE business_id = ? LIMIT 1');
         $stmt->execute([$businessId]);
         $row = $stmt->fetch();
         if (!$row) return null;
@@ -93,7 +98,7 @@ final readonly class LogoService
 
     public function delete(string $businessId): void
     {
-        $stmt = $this->pdo->prepare('DELETE FROM business_logo_assets WHERE business_id = ?');
+        $stmt = $this->pdo->prepare('DELETE FROM ' . $this->table . ' WHERE business_id = ?');
         $stmt->execute([$businessId]);
     }
 }

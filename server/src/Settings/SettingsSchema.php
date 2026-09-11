@@ -5,7 +5,7 @@ namespace Tinv\Settings;
 
 final class SettingsSchema
 {
-    public const SCHEMA_VERSION = 1;
+    public const SCHEMA_VERSION = 2;
 
     /** @return array<string,mixed> */
     public static function defaults(): array
@@ -30,6 +30,16 @@ final class SettingsSchema
                 'bankName' => '',
                 'accountHolder' => '',
                 'instructions' => '',
+            ],
+            'officialSeller' => [
+                'companyName' => '',
+                'address' => '',
+                'phone' => '',
+                'nationalId' => '',
+            ],
+            'officialPayment' => [
+                'accounts' => [], 'cardNumber' => '', 'accountNumber' => '', 'sheba' => '',
+                'bankName' => '', 'accountHolder' => '', 'instructions' => '',
             ],
             'document' => [
                 'proformaLabel' => 'پیش‌فاکتور',
@@ -96,7 +106,7 @@ final class SettingsSchema
     /** @param array<string,mixed> $current @param array<string,mixed> $patch @return array<string,mixed> */
     public static function merge(array $current, array $patch): array
     {
-        self::assertAllowedKeys($patch, ['seller', 'payment', 'document', 'presentation', 'items', 'financial', 'text', 'visual'], 'root');
+        self::assertAllowedKeys($patch, ['seller', 'payment', 'officialSeller', 'officialPayment', 'document', 'presentation', 'items', 'financial', 'text', 'visual'], 'root');
         $next = $current;
 
         foreach ($patch as $section => $value) {
@@ -107,6 +117,8 @@ final class SettingsSchema
             $next[$section] = match ($section) {
                 'seller' => self::seller($base, $value),
                 'payment' => self::payment($base, $value),
+                'officialSeller' => self::officialSeller($base, $value),
+                'officialPayment' => self::payment($base, $value),
                 'document' => self::document($base, $value),
                 'presentation' => self::presentation($base, $value),
                 'items' => self::items($base, $value),
@@ -144,6 +156,22 @@ final class SettingsSchema
                 'showAddress' => self::bool($value, 'seller_showAddress'),
                 'customContactLine' => self::plainText($value, 180, 'seller_customContactLine', true),
                 default => throw new SettingsValidationException('seller_unknown'),
+            };
+        }
+        return $base;
+    }
+
+    /** @param array<string,mixed> $base @param array<string,mixed> $patch @return array<string,mixed> */
+    private static function officialSeller(array $base, array $patch): array
+    {
+        self::assertAllowedKeys($patch, ['companyName', 'address', 'phone', 'nationalId'], 'officialSeller');
+        foreach ($patch as $key => $value) {
+            $base[$key] = match ($key) {
+                'companyName' => self::plainText($value, 160, 'officialSeller_companyName'),
+                'address' => self::plainText($value, 500, 'officialSeller_address', true),
+                'phone' => self::phone($value),
+                'nationalId' => self::digitsIdentifier($value, 10, 14, 'officialSeller_nationalId'),
+                default => throw new SettingsValidationException('officialSeller_unknown'),
             };
         }
         return $base;

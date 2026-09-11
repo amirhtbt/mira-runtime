@@ -50,6 +50,7 @@ try {
     $salesService = new SalesDocumentService($pdo, new SettingsRepository($pdo));
     $customers = new CustomerDirectory($pdo);
     $logoService = new LogoService($pdo);
+    $officialLogoService = new LogoService($pdo, 'business_official_logo_assets');
     $originGuard = new OriginGuard($config->appOrigin);
     $cookieName = $config->isProductionLike() ? '__Host-tinv_session' : 'tinv_session';
 
@@ -88,6 +89,7 @@ try {
         header('Cache-Control: private, no-store');
         $payload = $settingsService->get($context->businessId);
         $payload['logo'] = $logoService->metadata($context->businessId);
+        $payload['officialLogo'] = $officialLogoService->metadata($context->businessId);
         Json::ok($payload);
     }
 
@@ -101,6 +103,14 @@ try {
         header('Content-Disposition: inline; filename="business-logo"');
         echo $asset['bytes'];
         exit;
+    }
+
+    if ($method === 'GET' && $path === '/api/v1/settings/official-logo') {
+        $context = $sessionContext();
+        $asset = $officialLogoService->get($context->businessId);
+        if ($asset === null) Json::error('official_logo_not_found', 'Official company logo not found', 404);
+        header('Cache-Control: private, no-store'); header('Content-Type: ' . $asset['mimeType']); header('Content-Length: ' . (string) $asset['byteSize']);
+        header('Content-Disposition: inline; filename="official-company-logo"'); echo $asset['bytes']; exit;
     }
 
     if (in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
@@ -140,6 +150,7 @@ try {
         $context = $sessionContext();
         $result = $settingsService->update($context->businessId, Json::body());
         $result['logo'] = $logoService->metadata($context->businessId);
+        $result['officialLogo'] = $officialLogoService->metadata($context->businessId);
         header('Cache-Control: private, no-store');
         Json::ok($result);
     }
@@ -167,6 +178,23 @@ try {
         $logoService->delete($context->businessId);
         header('Cache-Control: private, no-store');
         Json::ok(['logo' => $logoService->metadata($context->businessId)]);
+    }
+
+
+    if ($method === 'POST' && $path === '/api/v1/settings/official-logo') {
+        $context = $sessionContext();
+        if (array_keys($_FILES) !== ['logo'] || $_POST !== []) Json::error('logo_invalid_request', 'Only one logo file is accepted', 422);
+        $upload = $_FILES['logo'];
+        if (!is_array($upload) || ($upload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || !is_string($upload['tmp_name'] ?? null)) Json::error('logo_upload_failed', 'Logo upload failed', 422);
+        $tmp = (string) $upload['tmp_name']; if (!is_uploaded_file($tmp)) Json::error('logo_upload_invalid', 'Logo upload invalid', 422);
+        $bytes = file_get_contents($tmp); if ($bytes === false) Json::error('logo_upload_failed', 'Logo upload failed', 422);
+        $meta = $officialLogoService->save($context->businessId, $bytes); header('Cache-Control: private, no-store');
+        Json::ok(['officialLogo' => ['present' => true] + $meta], 201);
+    }
+
+    if ($method === 'DELETE' && $path === '/api/v1/settings/official-logo') {
+        $context = $sessionContext(); $officialLogoService->delete($context->businessId); header('Cache-Control: private, no-store');
+        Json::ok(['officialLogo' => $officialLogoService->metadata($context->businessId)]);
     }
 
     if ($method === 'GET' && $path === '/api/v1/documents') {
@@ -213,6 +241,15 @@ try {
         $context = $sessionContext();
         if ($method === 'GET') Json::ok($salesService->get($context->businessId, $match[1]));
         if ($method === 'PUT') Json::ok($salesService->updateDraft($context->businessId, $match[1], Json::body()));
+        if ($method === 'DELETE') { $salesService->deleteDraft($context->businessId, $match[1]); Json::ok(['deleted' => true]); }
+    }
+
+    if ($method === 'POST' && preg_match('#^/api/v1/documents/([0-9a-f-]{36})/cancel$#', $path, $match)) {
+        $context = $sessionContext(); Json::ok($salesService->cancel($context->businessId, $match[1], Json::body()));
+    }
+
+    if ($method === 'POST' && preg_match('#^/api/v1/documents/([0-9a-f-]{36})/revision$#', $path, $match)) {
+        $context = $sessionContext(); Json::ok($salesService->revise($context->businessId, $match[1]), 201);
     }
 
     if ($method === 'POST' && preg_match('#^/api/v1/documents/([0-9a-f-]{36})/finalize$#', $path, $match)) {

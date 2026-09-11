@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { listSalesDocuments, type SalesDocument } from '../api/client';
 
 const amount=(doc:SalesDocument)=>`${Number(doc.grandTotalBaseUnit).toLocaleString('fa-IR')} ${doc.currencyUnit==='toman'?'تومان':'ریال'}`;
-const status=(doc:SalesDocument)=>doc.lifecycleStatus==='draft'?'پیش‌نویس':doc.documentType==='invoice'?'تسویه‌شده':doc.settlementStatus==='paid'?'تسویه کامل':doc.settlementStatus==='partial'?'پرداخت ناقص':'در انتظار پرداخت';
+const status=(doc:SalesDocument)=>doc.lifecycleStatus==='cancelled'?'باطل‌شده':doc.lifecycleStatus==='draft'?'پیش‌نویس':doc.documentType==='invoice'?'تسویه‌شده':doc.settlementStatus==='paid'?'تسویه کامل':doc.settlementStatus==='partial'?'پرداخت ناقص':'در انتظار پرداخت';
 
 export function DocumentsPage({preview=false,onOpen}:{preview?:boolean;onOpen:(doc:SalesDocument)=>void}){
   const [documents,setDocuments]=useState<SalesDocument[]>([]); const [loading,setLoading]=useState(!preview); const [error,setError]=useState('');

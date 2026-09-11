@@ -10,12 +10,15 @@ vi.mock('../api/client', () => ({
   updateBusinessSettings: vi.fn(),
   uploadBusinessLogo: vi.fn(),
   deleteBusinessLogo: vi.fn(),
-  businessLogoUrl: vi.fn(() => '/api/v1/settings/logo?v=test')
+  businessLogoUrl: vi.fn(() => '/api/v1/settings/logo?v=test'),
+  uploadOfficialLogo:vi.fn(),deleteOfficialLogo:vi.fn(),officialLogoUrl:vi.fn(()=>'/api/v1/settings/official-logo?v=test')
 }));
 
 const defaults: BusinessSettings = {
   seller: { businessName: '', displayName: '', subtitle: '', sellerName: '', phone: '', telegramUsername: '', address: '', showAddress: false, customContactLine: '' },
   payment: { cardNumber: '', accountNumber: '', sheba: '', bankName: '', accountHolder: '', instructions: '' },
+  officialSeller:{companyName:'',address:'',phone:'',nationalId:''},
+  officialPayment:{accounts:[],cardNumber:'',accountNumber:'',sheba:'',bankName:'',accountHolder:'',instructions:''},
   document: { proformaLabel: 'پیش‌فاکتور', invoiceLabel: 'فاکتور فروش', numberingMode: 'auto', proformaPrefix: 'PF', invoicePrefix: 'INV', numberPadding: 5, issueDateMode: 'today', validityDays: 7, calendar: 'jalali', digits: 'persian' },
   presentation: { currencyUnit: 'toman', thousandsSeparator: true, decimalPolicy: 'none', roundTotal: 'none' },
   items: { rowNumber: true, sku: false, image: false, title: true, description: true, unit: false, quantity: true, unitPrice: true, lineDiscount: false, tax: false, lineTotal: true },
@@ -25,7 +28,7 @@ const defaults: BusinessSettings = {
 };
 
 function payload(settings = defaults): SettingsResponse {
-  return { schemaVersion: 1, settings: JSON.parse(JSON.stringify(settings)), version: 0, updatedAt: null, logo: { present: false, mimeType: null, byteSize: null, width: null, height: null, updatedAt: null } };
+  return { schemaVersion: 2, settings: JSON.parse(JSON.stringify(settings)), version: 0, updatedAt: null, logo: { present: false, mimeType: null, byteSize: null, width: null, height: null, updatedAt: null }, officialLogo: { present: false, mimeType: null, byteSize: null, width: null, height: null, updatedAt: null } };
 }
 
 beforeEach(() => {
@@ -64,7 +67,7 @@ describe('G03 SettingsPage', () => {
 
   it('rejects unsupported or oversized logo files before API upload', async () => {
     render(<SettingsPage />);
-    const input = await screen.findByLabelText(/افزودن لوگو/);
+    const input = await screen.findByLabelText(/^افزودن لوگو$/);
     const svg = new File(['<svg><script>alert(1)</script></svg>'], 'bad.svg', { type: 'image/svg+xml' });
     fireEvent.change(input, { target: { files: [svg] } });
     expect(await screen.findByText(/PNG، JPEG یا WebP/)).toBeTruthy();
