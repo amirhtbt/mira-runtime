@@ -6,5 +6,5 @@
 .export-buttons .primary-button{grid-column:1/-1;background:var(--brand);color:var(--brand-text)}
 .export-buttons button:disabled{opacity:.55}
 .export-actions>p{margin:0;color:var(--muted);font-size:.78rem;line-height:1.7}
-.export-render-stage{position:fixed;left:-20000px;top:0;width:1123px;pointer-events:none}
+.export-render-stage{position:fixed;left:0;top:0;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none;z-index:-1}
 .export-render-stage>div{width:1123px;min-height:794px;background:#fff}
