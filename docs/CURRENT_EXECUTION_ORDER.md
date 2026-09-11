@@ -6,9 +6,9 @@ Default branch: `main`
 
 ## Current gate
 
-**G07 — History, search, duplicate and lightweight reuse**
-GitHub Issue: #8
-State: **ACTIVE — IMPLEMENTATION IN PROGRESS**. G06.2 account isolation and document cancellation were human-accepted on 2026-09-11. The remaining explicit G06 PDF/PNG/share acceptance matrix is tracked separately and is not silently waived.
+**G08 — Production security, performance and deployment hardening**
+GitHub Issue: #9
+State: **ACTIVE — IMPLEMENTATION IN PROGRESS**. G07 was merged, deployed to staging and owner-accepted on 2026-09-11. Production remains untouched. Real-iOS acceptance and provider backup evidence remain explicit G08 acceptance items.
 
 G00 / Issue #1 through G04 / Issue #5 are accepted and must not be reopened unless a regression, new platform constraint or explicit owner decision is documented.
 
@@ -88,8 +88,8 @@ G00 / Issue #1 through G04 / Issue #5 are accepted and must not be reopened unle
 6. #6 — G05: Dedicated Templates tab, three structural A4-landscape layouts and colour themes — PASS / CLOSED
 7. #57 — G04.1: Complete one-page New Document builder and reusable customer profiles — ACTIVE REMEDIATION
 8. #7 — G06: Persian image/PDF export and Telegram sharing — ACTIVE IMPLEMENTATION
-9. #8 — G07: Invoice history, search, duplicate and lightweight reuse — ACTIVE
-10. #9 — G08: Production security, performance and deployment hardening
+9. #8 — G07: Invoice history, search, duplicate and lightweight reuse — PASS / CLOSED
+10. #9 — G08: Production security, performance and deployment hardening — ACTIVE
 11. #10 — G09: Free pilot, analytics and user feedback
 12. #11 — G10: Product-market-fit review and expansion decision
 13. #12 — G11: Web/paid migration foundation after positive G10
@@ -144,4 +144,4 @@ For sales-document boundaries, also read `docs/SALES_DOCUMENT_DOMAIN.md` before 
 
 ## Immediate next action
 
-Run exact-head G07 CI, deploy only the validated merge SHA to staging, then complete Android/Desktop Human Acceptance for customer grouping, search/filter, duplicate and reversible archive. Track the remaining G06 PNG/PDF/share acceptance separately. Real iOS remains mandatory in G08 before G09.
+Complete G08 hardening on a dedicated branch, run exact-head CI including backup/restore rehearsal, merge only a green SHA and deploy that exact SHA to staging. Then collect provider backup evidence and real-iOS acceptance before G09. Production deployment requires a separate explicit owner go/no-go.
