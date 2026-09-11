@@ -43,5 +43,9 @@ test('G04.1 uses one scroll page, unlimited rows and conditional official identi
   await page.getByRole('button',{name:'افزودن قلم جدید'}).click();
   await expect(page.locator('.item-editor')).toHaveCount(2);
   await expect(page.getByRole('button',{name:'اشتراک‌گذاری'})).toBeDisabled();
+  await page.getByRole('button',{name:'پیش‌نمایش کامل'}).click();
+  await expect(page.getByRole('dialog',{name:'پیش‌نمایش کامل سند'})).toBeVisible();
+  await page.getByRole('button',{name:'بستن ×'}).click();
+  await expect(page.getByRole('dialog',{name:'پیش‌نمایش کامل سند'})).toHaveCount(0);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth)).toBe(false);
 });

@@ -29,6 +29,25 @@ final readonly class CustomerDirectory
         return array_map(self::present(...),$s->fetchAll());
     }
 
+    /** @return list<array<string,mixed>> */
+    public function list(string $businessId, string $query = ''): array
+    {
+        $query = trim($query);
+        if ($query === '') {
+            $s=$this->pdo->prepare('SELECT id,display_name,phone,normalized_mobile,address,is_official,national_id FROM customers WHERE business_id=? AND normalized_mobile IS NOT NULL AND archived_at IS NULL ORDER BY updated_at DESC LIMIT 50');
+            $s->execute([$businessId]);
+        } else {
+            $digits = strtr($query, ['۰'=>'0','۱'=>'1','۲'=>'2','۳'=>'3','۴'=>'4','۵'=>'5','۶'=>'6','۷'=>'7','۸'=>'8','۹'=>'9']);
+            $digits = preg_replace('/\D/', '', $digits) ?? '';
+            if (str_starts_with($digits, '98')) $digits = '0'.substr($digits,2);
+            $likeName = '%'.str_replace(['\\','%','_'],['\\\\','\\%','\\_'],$query).'%';
+            $likePhone = '%'.str_replace(['\\','%','_'],['\\\\','\\%','\\_'],$digits).'%';
+            $s=$this->pdo->prepare("SELECT id,display_name,phone,normalized_mobile,address,is_official,national_id FROM customers WHERE business_id=? AND normalized_mobile IS NOT NULL AND archived_at IS NULL AND (display_name LIKE ? ESCAPE '\\\\' OR normalized_mobile LIKE ? ESCAPE '\\\\') ORDER BY updated_at DESC LIMIT 50");
+            $s->execute([$businessId,$likeName,$likePhone]);
+        }
+        return array_map(self::present(...),$s->fetchAll());
+    }
+
     /** @param array<string,mixed> $input @return array<string,mixed> */
     public function save(string $businessId,array $input,?string $id=null):array
     {

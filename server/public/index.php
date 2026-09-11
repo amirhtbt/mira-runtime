@@ -179,7 +179,8 @@ try {
         $context = $sessionContext();
         header('Cache-Control: private, no-store');
         $phone = (string) ($_GET['phone'] ?? '');
-        Json::ok(['customers' => strlen($phone) >= 5 ? $customers->search($context->businessId, $phone) : []]);
+        $query = (string) ($_GET['query'] ?? '');
+        Json::ok(['customers' => $phone !== '' ? $customers->search($context->businessId, $phone) : $customers->list($context->businessId, $query)]);
     }
 
     if ($method === 'POST' && $path === '/api/v1/customers') {

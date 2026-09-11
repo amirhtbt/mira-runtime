@@ -40,7 +40,11 @@ Test::run('G04.1 normalizes Iranian mobiles and isolates reusable customers',fun
     $directory=new CustomerDirectory($pdo);
     $saved=$directory->save($one->context->businessId,['displayName'=>'شرکت مشتری','phone'=>'+989121234567','address'=>'تهران','isOfficial'=>true,'nationalId'=>'1234567890']);
     Test::equals($saved['id'],$directory->search($one->context->businessId,'09121234567')[0]['id']);
+    Test::equals($saved['id'],$directory->list($one->context->businessId)[0]['id']);
+    Test::equals($saved['id'],$directory->list($one->context->businessId,'شرکت مشتری')[0]['id']);
+    Test::equals($saved['id'],$directory->list($one->context->businessId,'1234')[0]['id']);
     Test::equals(0,count($directory->search($two->context->businessId,'09121234567')));
+    Test::equals(0,count($directory->list($two->context->businessId)));
     Test::throws(fn()=>$directory->save($one->context->businessId,['displayName'=>'تکراری','phone'=>'09121234567','isOfficial'=>false]),SalesValidationException::class,'customer_mobile_exists');
 });
 
