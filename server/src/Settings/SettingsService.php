@@ -20,7 +20,7 @@ final readonly class SettingsService
             ];
         }
 
-        $normalized = SettingsSchema::merge(SettingsSchema::defaults(), $stored['settings']);
+        $normalized = $this->normalizeStored($stored['settings']);
         return [
             'schemaVersion' => SettingsSchema::SCHEMA_VERSION,
             'settings' => $normalized,
@@ -41,5 +41,38 @@ final readonly class SettingsService
             'version' => $saved['version'],
             'updatedAt' => $saved['updatedAt'],
         ];
+    }
+
+    /**
+     * Stored settings can outlive a schema revision. Keep every value that the
+     * current schema still accepts and fall back only for the incompatible
+     * field, instead of making the complete settings endpoint unavailable.
+     *
+     * @param array<string,mixed> $stored
+     * @return array<string,mixed>
+     */
+    private function normalizeStored(array $stored): array
+    {
+        $next = SettingsSchema::defaults();
+        foreach ($stored as $section => $values) {
+            if (!array_key_exists($section, $next) || !is_array($values) || array_is_list($values)) continue;
+            foreach ($values as $key => $value) {
+                try {
+                    $next = SettingsSchema::merge($next, [$section => [$key => $value]]);
+                } catch (SettingsValidationException) {
+                    $legacy = match (true) {
+                        $section === 'visual' && $key === 'templateId' => match ($value) {
+                            'mira-classic', 'luxury' => 'classic-business',
+                            'bazaar' => 'modern-business',
+                            default => 'minimal',
+                        },
+                        $section === 'presentation' && $key === 'currencyUnit' && $value === 'toman' => 'rial',
+                        default => null,
+                    };
+                    if ($legacy !== null) $next = SettingsSchema::merge($next, [$section => [$key => $legacy]]);
+                }
+            }
+        }
+        return $next;
     }
 }

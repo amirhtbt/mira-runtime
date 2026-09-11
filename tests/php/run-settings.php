@@ -150,7 +150,7 @@ Test::run('G03 logo validation is raster content based size bounded and business
     Test::throws(fn() => LogoService::validateBytes(str_repeat('x', LogoService::MAX_BYTES + 1)), LogoValidationException::class, 'too_large');
 });
 
-Test::run('G05 legacy mira-classic business settings are migrated without touching business data', function () use ($pdo, $service, $two): void {
+Test::run('G05 legacy settings load safely even before a migration without touching business data', function () use ($pdo, $service, $two): void {
     $legacy = SettingsSchema::defaults();
     $legacy['seller']['businessName'] = 'Legacy Mira Seller';
     $legacy['visual']['templateId'] = 'mira-classic';
@@ -161,20 +161,25 @@ Test::run('G05 legacy mira-classic business settings are migrated without touchi
     );
     $statement->execute([$two->context->businessId, $encoded]);
 
-    Test::throws(
-        fn() => $service->get($two->context->businessId),
-        SettingsValidationException::class,
-        'visual_templateId_invalid'
-    );
-
-    $migration = file_get_contents(__DIR__ . '/../../server/migrations/005_g05_legacy_template_settings.sql');
-    Test::assert(is_string($migration));
-    $pdo->exec($migration);
-
     $loaded = $service->get($two->context->businessId);
     Test::equals('Legacy Mira Seller', $loaded['settings']['seller']['businessName']);
     Test::equals('classic-business', $loaded['settings']['visual']['templateId']);
     Test::equals(7, $loaded['version']);
+});
+
+Test::run('G04.1 one incompatible stored field cannot take down all settings', function () use ($pdo, $service, $two): void {
+    $legacy = SettingsSchema::defaults();
+    $legacy['seller']['businessName'] = 'Preserved Seller';
+    $legacy['payment']['accounts'] = [['cardNumber' => 'broken']];
+    $legacy['unexpectedSection'] = ['unsafe' => true];
+    $pdo->prepare('UPDATE business_settings SET settings_json=? WHERE business_id=?')->execute([
+        json_encode($legacy, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+        $two->context->businessId,
+    ]);
+    $loaded = $service->get($two->context->businessId);
+    Test::equals('Preserved Seller', $loaded['settings']['seller']['businessName']);
+    Test::equals([], $loaded['settings']['payment']['accounts']);
+    Test::assert(!array_key_exists('unexpectedSection', $loaded['settings']));
 });
 
 Test::run('G05 removed presentation choices map to the three-layout catalogue', function () use ($pdo, $service, $two): void {

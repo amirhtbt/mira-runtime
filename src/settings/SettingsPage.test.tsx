@@ -71,10 +71,13 @@ describe('G03 SettingsPage', () => {
     expect(uploadBusinessLogo).not.toHaveBeenCalled();
   });
 
-  it('reports load failure instead of leaving an endless spinner', async () => {
+  it('reports load failure and recovers through an explicit retry', async () => {
     vi.mocked(getBusinessSettings).mockRejectedValueOnce(new Error('offline'));
     render(<SettingsPage />);
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('تنظیمات بارگذاری نشد');
+    fireEvent.click(screen.getByRole('button', { name: 'تلاش دوباره' }));
+    expect(await screen.findByRole('heading', { name: 'اطلاعاتی که روی سند دیده می‌شود' })).toBeTruthy();
+    expect(getBusinessSettings).toHaveBeenCalledTimes(2);
   });
 });
