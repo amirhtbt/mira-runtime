@@ -18,4 +18,12 @@ describe('TemplatesPage persistence', () => {
     render(<TemplatesPage/>); await screen.findByRole('heading', { name: 'قالب‌ها' }); fireEvent.click(screen.getByRole('button', { name: 'طلایی' }));
     expect(screen.getByRole('button', { name: 'فعال‌کردن قالب' })).toHaveProperty('disabled', false);
   });
+  it('keeps the catalog usable and reloads the active template after a transient failure', async () => {
+    vi.mocked(getBusinessSettings).mockRejectedValueOnce(new Error('settings_load_failed')).mockResolvedValueOnce(payload as never);
+    render(<TemplatesPage/>);
+    expect(await screen.findByRole('button', { name: /تجاری کلاسیک/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'تلاش دوباره' }));
+    await waitFor(() => expect(getBusinessSettings).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'تلاش دوباره' })).toBeNull());
+  });
 });

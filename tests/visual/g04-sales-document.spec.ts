@@ -9,7 +9,6 @@ for (const scenario of [
     await page.setViewportSize({width:scenario.width,height:scenario.height});
     await page.goto(`/?g02-preview=1&theme=${scenario.theme}`);
     await page.getByRole('button',{name:'ساخت سند جدید'}).first().click();
-    await page.getByRole('button',{name:/پیشنهاد قیمت/}).click();
     await page.getByLabel('نام مشتری یا شرکت').fill('مشتری نمونه');
     await page.getByLabel('شماره تماس').fill('09120000000');
     await page.getByLabel('شرح کالا یا خدمت').fill('سفارش کامل');
@@ -27,7 +26,7 @@ for (const scenario of [
 
 test('G04 final invoice presents full settlement without installment breakdown',async({page})=>{
   await page.setViewportSize({width:390,height:844}); await page.goto('/?g02-preview=1');
-  await page.getByRole('button',{name:'ساخت سند جدید'}).first().click(); await page.getByRole('button',{name:/کامل پرداخت شده/}).click();
+  await page.getByRole('button',{name:'ساخت سند جدید'}).first().click(); await page.getByRole('button',{name:'فاکتور فروش'}).click();
   await page.getByLabel('نام مشتری یا شرکت').fill('خریدار نقدی'); await page.getByLabel('شماره تماس').fill('09120000001'); await page.getByLabel('شرح کالا یا خدمت').fill('فروش کامل'); await page.getByLabel('مبلغ واحد (ریال) *').fill('10000000');
   await page.getByRole('button',{name:'ذخیره و ادامه برای صدور'}).click(); await page.getByRole('button',{name:/تأیید پرداخت کامل/}).click();
   await expect(page.getByText(/جزئیات اقساط در این فاکتور نمایش داده نمی‌شود/)).toBeVisible();
@@ -36,8 +35,9 @@ test('G04 final invoice presents full settlement without installment breakdown',
 
 test('G04.1 uses one scroll page, unlimited rows and conditional official identity',async({page})=>{
   await page.setViewportSize({width:390,height:844});await page.goto('/?g02-preview=1');
-  await page.getByRole('button',{name:'ساخت سند جدید'}).first().click();await page.getByRole('button',{name:/پیشنهاد قیمت/}).click();
-  await expect(page.getByText('ساخت سند جدید',{exact:true})).toHaveCount(1);
+  await page.getByRole('button',{name:'ساخت سند جدید'}).first().click();
+  await expect(page.getByText('فرم یک‌صفحه‌ای',{exact:true})).toHaveCount(0);
+  await expect(page.getByText('ساخت سند جدید',{exact:true})).toHaveCount(0);
   await expect(page.getByLabel('شناسه ملی')).toHaveCount(0);
   await page.getByText('سند رسمی',{exact:true}).click();await expect(page.getByLabel('شناسه ملی')).toBeVisible();
   await page.getByRole('button',{name:'افزودن قلم جدید'}).click();
