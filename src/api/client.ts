@@ -1,4 +1,5 @@
 import type { SettingsPatch, SettingsResponse } from '../settings/types';
+import type { BusinessSettings } from '../settings/types';
 
 export interface SessionUser {
   userId: string;
@@ -95,6 +96,8 @@ export interface SalesDocument {
   grandTotalBaseUnit: string; paidAmountBaseUnit: string; remainingAmountBaseUnit: string; version: number;
   isOfficial?:boolean;nationalId?:string;customerAddress?:string;shippingMethod?:string;validityDays?:number|null;notes?:string;issueDate?:string|null;validUntil?:string|null;taxRateBasisPoints?:number;taxTotalBaseUnit?:string;
   items: Array<{title:string;description:string;quantityMilli:string|number;unitPriceBaseUnit:string|number;discountBaseUnit?:string|number;taxBaseUnit?:string|number;lineTotalBaseUnit:string|number;position:number}>;
+  settingsSnapshot?: BusinessSettings;
+  logoPresent?: boolean;
   payments?: Array<{id:string;amount_base_unit:string;paid_at:string;method:string;reference_text:string;note:string;status:string}>;
   canIssueFinalInvoice: boolean;
 }
@@ -112,3 +115,4 @@ export async function findCustomers(phone:string):Promise<CustomerProfile[]>{ret
 export async function listCustomers(query=''):Promise<CustomerProfile[]>{return requireData(await request<{customers:CustomerProfile[]}>(`/api/v1/customers?query=${encodeURIComponent(query)}`),'customer_list_failed').customers;}
 export async function saveCustomer(input:Omit<CustomerProfile,'id'|'normalizedMobile'>):Promise<CustomerProfile>{return requireData(await request<CustomerProfile>('/api/v1/customers',{method:'POST',body:JSON.stringify(input)}),'customer_save_failed');}
 export async function updateCustomer(id:string,input:Omit<CustomerProfile,'id'|'normalizedMobile'>):Promise<CustomerProfile>{return requireData(await request<CustomerProfile>(`/api/v1/customers/${encodeURIComponent(id)}`,{method:'PUT',body:JSON.stringify(input)}),'customer_update_failed');}
+export async function recordDocumentExport(id:string,input:{format:'png'|'pdf'|'share';byteSize:number}):Promise<void>{requireData(await request<{id:string}>(`/api/v1/documents/${encodeURIComponent(id)}/exports`,{method:'POST',body:JSON.stringify(input)}),'export_record_failed');}

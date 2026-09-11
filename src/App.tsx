@@ -49,21 +49,22 @@ function Settings({ onSummaryChange }: { onSummaryChange: (summary: { businessNa
   return <div className="page settings-shell"><header className="page-header"><span>شخصی‌سازی</span><h1>تنظیمات</h1><p>اطلاعات کسب‌وکار و پیش‌فرض‌های سند را یک‌بار تنظیم کنید.</p></header><SettingsPage onSummaryChange={onSummaryChange} /></div>;
 }
 
-export function AppShell({ telegram, runtime, data = emptyHome, preview = false }: { telegram: TelegramAdapter; runtime: TelegramRuntimeSnapshot; data?: HomeData; preview?: boolean }) {
+export function AppShell({ telegram, runtime, data = emptyHome, preview = false, businessId = 'preview' }: { telegram: TelegramAdapter; runtime: TelegramRuntimeSnapshot; data?: HomeData; preview?: boolean; businessId?: string }) {
   const [tab, setTab] = useState<AppTab>('home');
   const [createIntent, setCreateIntent] = useState(false);
   const [documentType, setDocumentType] = useState<DocumentType | null>(null);
   const [documentId, setDocumentId] = useState<string | null>(null);
+  const [documentPreviewOpen, setDocumentPreviewOpen] = useState(false);
   const [homeData, setHomeData] = useState<HomeData>(data);
   useEffect(() => setHomeData(data), [data]);
-  useEffect(() => { telegram.setBackHandler(tab !== 'home' || createIntent ? () => { if (documentId) { setDocumentId(null); setDocumentType(null); setCreateIntent(false); setTab('invoices'); } else { setCreateIntent(false); setDocumentType(null); setTab('home'); } } : null); return () => telegram.setBackHandler(null); }, [createIntent, documentId, tab, telegram]);
+  useEffect(() => { telegram.setBackHandler(tab !== 'home' || createIntent ? () => { if (documentPreviewOpen) { setDocumentPreviewOpen(false); return; } if (documentId) { setDocumentId(null); setDocumentType(null); setCreateIntent(false); setTab('invoices'); } else { setCreateIntent(false); setDocumentType(null); setTab('home'); } } : null); return () => telegram.setBackHandler(null); }, [createIntent, documentId, documentPreviewOpen, tab, telegram]);
   const updateSettingsSummary = useCallback((summary: { businessName?: string; settingsComplete: boolean }) => {
     setHomeData(current => ({ ...current, ...summary }));
   }, []);
-  function chooseTab(next: AppTab) { setCreateIntent(false); setDocumentType(null); setDocumentId(null); setTab(next); telegram.haptic('selection'); }
-  function startCreate() { setCreateIntent(true); setDocumentType('proforma'); setDocumentId(null); telegram.haptic('light'); }
+  function chooseTab(next: AppTab) { setDocumentPreviewOpen(false); setCreateIntent(false); setDocumentType(null); setDocumentId(null); setTab(next); telegram.haptic('selection'); }
+  function startCreate() { setDocumentPreviewOpen(false); setCreateIntent(true); setDocumentType('proforma'); setDocumentId(null); telegram.haptic('light'); }
   function openDocument(doc:SalesDocument){setDocumentType(doc.documentType);setDocumentId(doc.id);setCreateIntent(true);telegram.haptic('selection');}
-  const createContent = documentType ? <SalesDocumentPage type={documentType} documentId={documentId} preview={preview} onTypeChange={setDocumentType} onBack={() => {setDocumentType(null);setDocumentId(null);if(documentId){setCreateIntent(false);setTab('invoices');}}} /> : null;
+  const createContent = documentType ? <SalesDocumentPage type={documentType} documentId={documentId} preview={preview} draftKey={`mira:sales-draft:${businessId}`} showPreview={documentPreviewOpen} onPreviewChange={setDocumentPreviewOpen} onTypeChange={setDocumentType} onBack={() => {setDocumentPreviewOpen(false);setDocumentType(null);setDocumentId(null);if(documentId){setCreateIntent(false);setTab('invoices');}}} /> : null;
   return <main className="app-shell" data-theme={runtime.colorScheme} data-platform={runtime.platform}><div className="app-frame"><div className="topbar"><div className="brand"><span className="brand-mark"><Icon name="spark" /></span><span><strong>میرا</strong><small>فاکتورساز تلگرام</small></span></div><span className="secure-chip"><span/>امن</span></div><div className="content" key={createIntent ? `create-${documentId??'new'}` : tab}>{createIntent ? createContent : tab === 'home' ? <Home data={homeData} onCreate={startCreate} /> : tab === 'invoices' ? <DocumentsPage preview={preview} onOpen={openDocument} /> : tab === 'templates' ? <TemplatesPage preview={preview} /> : <Settings onSummaryChange={updateSettingsSummary} />}</div>
     <nav className="bottom-nav" aria-label="ناوبری اصلی"><button className={tab === 'home' && !createIntent ? 'active' : ''} aria-current={tab === 'home' && !createIntent ? 'page' : undefined} onClick={() => chooseTab('home')}><Icon name="home" /><span>خانه</span></button><button className={tab === 'invoices' && !createIntent ? 'active' : ''} aria-current={tab === 'invoices' && !createIntent ? 'page' : undefined} onClick={() => chooseTab('invoices')}><Icon name="invoice" /><span>فاکتورها</span></button><button className={`nav-create${createIntent ? ' active' : ''}`} aria-label="ساخت سند جدید" aria-current={createIntent ? 'page' : undefined} onClick={startCreate}><span><Icon name="plus" /></span><b>سند جدید</b></button><button className={tab === 'settings' && !createIntent ? 'active' : ''} aria-current={tab === 'settings' && !createIntent ? 'page' : undefined} onClick={() => chooseTab('settings')}><Icon name="settings" /><span>تنظیمات</span></button><button className={tab === 'templates' && !createIntent ? 'active' : ''} aria-current={tab === 'templates' && !createIntent ? 'page' : undefined} onClick={() => chooseTab('templates')}><Icon name="templates" /><span>قالب‌ها</span></button></nav></div></main>;
 }
@@ -81,5 +82,5 @@ export default function App() {
   useEffect(() => { const offline = () => setState('offline'); const online = () => setAttempt(value => value + 1); window.addEventListener('offline', offline); window.addEventListener('online', online); return () => { window.removeEventListener('offline', offline); window.removeEventListener('online', online); }; }, []);
   if (preview) return <AppShell telegram={telegram} preview runtime={{ ...runtime, colorScheme: new URLSearchParams(window.location.search).get('theme') === 'dark' ? 'dark' : 'light' }} />;
   if (state !== 'ready' || !session) return <main className="app-shell state-shell" data-theme={runtime.colorScheme}><StatusView state={state === 'ready' ? 'error' : state} message={error || undefined} onRetry={state === 'loading' ? undefined : () => setAttempt(value => value + 1)} /></main>;
-  return <AppShell telegram={telegram} runtime={runtime} />;
+  return <AppShell telegram={telegram} runtime={runtime} businessId={session.businessId} />;
 }

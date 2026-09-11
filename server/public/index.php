@@ -198,6 +198,17 @@ try {
         Json::ok($salesService->createDraft($context->businessId, Json::body()), 201);
     }
 
+    if ($method === 'GET' && preg_match('#^/api/v1/documents/([0-9a-f-]{36})/logo$#', $path, $match)) {
+        $context = $sessionContext();
+        $asset = $salesService->getLogo($context->businessId, $match[1]);
+        if ($asset === null) Json::error('document_logo_not_found', 'Document logo not found', 404);
+        header('Cache-Control: private, no-store');
+        header('Content-Type: ' . $asset['mimeType']);
+        header('Content-Length: ' . (string) $asset['byteSize']);
+        echo $asset['bytes'];
+        exit;
+    }
+
     if (preg_match('#^/api/v1/documents/([0-9a-f-]{36})$#', $path, $match)) {
         $context = $sessionContext();
         if ($method === 'GET') Json::ok($salesService->get($context->businessId, $match[1]));
@@ -217,6 +228,11 @@ try {
     if ($method === 'POST' && preg_match('#^/api/v1/documents/([0-9a-f-]{36})/final-invoice$#', $path, $match)) {
         $context = $sessionContext();
         Json::ok($salesService->convert($context->businessId, $match[1]), 201);
+    }
+
+    if ($method === 'POST' && preg_match('#^/api/v1/documents/([0-9a-f-]{36})/exports$#', $path, $match)) {
+        $context = $sessionContext();
+        Json::ok($salesService->recordExport($context->businessId, $match[1], Json::body()), 201);
     }
 
     Json::error('not_found', 'Route not found', 404);

@@ -31,6 +31,8 @@ test('G04 final invoice presents full settlement without installment breakdown',
   await page.getByRole('button',{name:'ذخیره و ادامه برای صدور'}).click(); await page.getByRole('button',{name:/تأیید پرداخت کامل/}).click();
   await expect(page.getByText(/جزئیات اقساط در این فاکتور نمایش داده نمی‌شود/)).toBeVisible();
   await expect(page.getByText(/بیعانه/)).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'دریافت تصویر'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'دریافت PDF'})).toBeVisible();
 });
 
 test('G04.1 uses one scroll page, unlimited rows and conditional official identity',async({page})=>{
@@ -44,8 +46,19 @@ test('G04.1 uses one scroll page, unlimited rows and conditional official identi
   await expect(page.locator('.item-editor')).toHaveCount(2);
   await expect(page.getByRole('button',{name:'اشتراک‌گذاری'})).toBeDisabled();
   await page.getByRole('button',{name:'پیش‌نمایش کامل'}).click();
-  await expect(page.getByRole('dialog',{name:'پیش‌نمایش کامل سند'})).toBeVisible();
+  const dialog=page.getByRole('dialog',{name:'پیش‌نمایش کامل سند'});await expect(dialog).toBeVisible();
+  const box=await dialog.locator('.preview-modal-panel').boundingBox();expect(box).not.toBeNull();expect(box!.y+box!.height).toBeLessThanOrEqual(844);
   await page.getByRole('button',{name:'بستن ×'}).click();
   await expect(page.getByRole('dialog',{name:'پیش‌نمایش کامل سند'})).toHaveCount(0);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth)).toBe(false);
+});
+
+test('G06 creates a real A4 PDF download from an issued Persian invoice',async({page})=>{
+  await page.setViewportSize({width:390,height:844});await page.goto('/?g02-preview=1');
+  await page.getByRole('button',{name:'ساخت سند جدید'}).first().click();await page.getByRole('button',{name:'فاکتور فروش'}).click();
+  await page.getByLabel('نام مشتری یا شرکت').fill('خریدار خروجی');await page.getByLabel('شماره تماس').fill('09120000002');await page.getByLabel('شرح کالا یا خدمت').fill('کالای فارسی');await page.getByLabel('مبلغ واحد (ریال) *').fill('10000000');
+  await page.getByRole('button',{name:'ذخیره و ادامه برای صدور'}).click();await page.getByRole('button',{name:/تأیید پرداخت کامل/}).click();
+  const [download]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:'دریافت PDF'}).click()]);
+  expect(download.suggestedFilename()).toMatch(/^invoice-INV-00001\.pdf$/);
+  const path=await download.path();expect(path).not.toBeNull();
 });
