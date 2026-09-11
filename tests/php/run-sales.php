@@ -13,6 +13,7 @@ use Tinv\Sales\Money;
 use Tinv\Sales\SalesDocumentService;
 use Tinv\Sales\SalesValidationException;
 use Tinv\Sales\CustomerDirectory;
+use Tinv\Sales\DocumentHistoryService;
 use Tinv\Sales\JalaliDate;
 use Tinv\Session\SessionService;
 use Tinv\Settings\SettingsRepository;
@@ -28,6 +29,7 @@ $two=$auth->authenticateTelegram(TelegramFixture::user('902000002',$now-2,$confi
 $settings=new SettingsService(new SettingsRepository($pdo));
 $settings->update($one->context->businessId,['seller'=>['businessName'=>'میرا اصلی'],'document'=>['proformaPrefix'=>'PF','invoicePrefix'=>'INV'],'presentation'=>['currencyUnit'=>'rial']],$now);
 $service=new SalesDocumentService($pdo,new SettingsRepository($pdo));
+$history=new DocumentHistoryService($pdo,$service);
 
 Test::run('G04 integer-only deterministic money calculation',function():void{
     $result=Money::calculate([['title'=>'خدمت','quantityMilli'=>'1500','unitPriceBaseUnit'=>'10000000']],500000,100000);
@@ -123,4 +125,33 @@ Test::run('G04 archive returns both document types with customer identity',funct
     Test::assert(in_array('proforma',array_column($documents,'documentType'),true));
     Test::assert(in_array('invoice',array_column($documents,'documentType'),true));
     Test::assert(!in_array('',array_column($documents,'customerName'),true));
+});
+
+Test::run('G07 history search is tenant scoped and finds customer, number and item text',function()use($history,$one,$two):void{
+    $byCustomer=$history->list($one->context->businessId,['query'=>'مشتری نمونه','limit'=>20]);
+    Test::assert(count($byCustomer['documents'])>=2);
+    $byItem=$history->list($one->context->businessId,['query'=>'سفارش کامل','documentType'=>'proforma','limit'=>20]);
+    Test::equals(1,count($byItem['documents']));
+    $other=$history->list($two->context->businessId,['query'=>'سفارش کامل','limit'=>20]);
+    Test::equals(0,count($other['documents']));
+});
+
+Test::run('G07 duplicate creates an independent draft and archive is reversible',function()use($history,$one,&$proforma):void{
+    $copy=$history->duplicate($one->context->businessId,$proforma['id']);
+    Test::equals('draft',$copy['lifecycleStatus']);
+    Test::equals($proforma['grandTotalBaseUnit'],$copy['grandTotalBaseUnit']);
+    Test::assert($copy['id']!==$proforma['id']);
+    $history->setArchived($one->context->businessId,$copy['id'],true);
+    $active=$history->list($one->context->businessId,['query'=>$copy['customerName'],'limit'=>50]);
+    Test::assert(!in_array($copy['id'],array_column($active['documents'],'id'),true));
+    $archived=$history->list($one->context->businessId,['archived'=>true,'limit'=>50]);
+    Test::assert(in_array($copy['id'],array_column($archived['documents'],'id'),true));
+    $history->setArchived($one->context->businessId,$copy['id'],false);
+});
+
+Test::run('G07 cursor pagination never repeats a document',function()use($history,$one):void{
+    $first=$history->list($one->context->businessId,['limit'=>2]);
+    Test::assert($first['nextCursor']!==null);
+    $second=$history->list($one->context->businessId,['limit'=>2,'cursor'=>$first['nextCursor']]);
+    Test::equals([],array_values(array_intersect(array_column($first['documents'],'id'),array_column($second['documents'],'id'))));
 });

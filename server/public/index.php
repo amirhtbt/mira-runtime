@@ -18,6 +18,7 @@ use Tinv\Session\SessionService;
 use Tinv\Sales\SalesDocumentService;
 use Tinv\Sales\SalesValidationException;
 use Tinv\Sales\CustomerDirectory;
+use Tinv\Sales\DocumentHistoryService;
 use Tinv\Settings\LogoService;
 use Tinv\Settings\LogoValidationException;
 use Tinv\Settings\SettingsRepository;
@@ -48,6 +49,7 @@ try {
     );
     $settingsService = new SettingsService(new SettingsRepository($pdo));
     $salesService = new SalesDocumentService($pdo, new SettingsRepository($pdo));
+    $historyService = new DocumentHistoryService($pdo, $salesService);
     $customers = new CustomerDirectory($pdo);
     $logoService = new LogoService($pdo);
     $officialLogoService = new LogoService($pdo, 'business_official_logo_assets');
@@ -210,7 +212,13 @@ try {
     if ($method === 'GET' && $path === '/api/v1/documents') {
         $context = $sessionContext();
         header('Cache-Control: private, no-store');
-        Json::ok(['documents' => $salesService->list($context->businessId)]);
+        $filters = [
+            'query' => (string) ($_GET['query'] ?? ''), 'documentType' => (string) ($_GET['documentType'] ?? ''),
+            'lifecycleStatus' => (string) ($_GET['lifecycleStatus'] ?? ''), 'settlementStatus' => (string) ($_GET['settlementStatus'] ?? ''),
+            'customerId' => (string) ($_GET['customerId'] ?? ''), 'archived' => ($_GET['archived'] ?? '') === '1',
+            'cursor' => (string) ($_GET['cursor'] ?? ''), 'limit' => (int) ($_GET['limit'] ?? 20),
+        ];
+        Json::ok($historyService->list($context->businessId, $filters));
     }
 
     if ($method === 'GET' && $path === '/api/v1/customers') {
@@ -260,6 +268,15 @@ try {
 
     if ($method === 'POST' && preg_match('#^/api/v1/documents/([0-9a-f-]{36})/revision$#', $path, $match)) {
         $context = $sessionContext(); Json::ok($salesService->revise($context->businessId, $match[1]), 201);
+    }
+
+    if ($method === 'POST' && preg_match('#^/api/v1/documents/([0-9a-f-]{36})/duplicate$#', $path, $match)) {
+        $context = $sessionContext(); Json::ok($historyService->duplicate($context->businessId, $match[1]), 201);
+    }
+
+    if ($method === 'POST' && preg_match('#^/api/v1/documents/([0-9a-f-]{36})/archive$#', $path, $match)) {
+        $context = $sessionContext(); $body = Json::body();
+        Json::ok($historyService->setArchived($context->businessId, $match[1], ($body['archived'] ?? true) === true));
     }
 
     if ($method === 'POST' && preg_match('#^/api/v1/documents/([0-9a-f-]{36})/finalize$#', $path, $match)) {

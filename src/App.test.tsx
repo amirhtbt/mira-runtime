@@ -20,7 +20,7 @@ describe('G02 app shell', () => {
     render(<AppShell telegram={adapter()} runtime={runtime} />);
     expect(screen.getByRole('heading', { name: 'اولین سند فروشتان را بسازید' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /فاکتورها/ }));
-    expect(screen.getByRole('heading', { name: 'فاکتورها' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'اسناد مشتریان' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /تنظیمات/ }));
     expect(screen.getByRole('heading', { name: 'تنظیمات' })).toBeTruthy();
   });
