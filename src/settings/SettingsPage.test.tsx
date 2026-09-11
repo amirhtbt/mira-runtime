@@ -11,6 +11,7 @@ vi.mock('../api/client', () => ({
   uploadBusinessLogo: vi.fn(),
   deleteBusinessLogo: vi.fn(),
   businessLogoUrl: vi.fn(() => '/api/v1/settings/logo?v=test'),
+  recordPilotEvent: vi.fn().mockResolvedValue(undefined),
   uploadOfficialLogo:vi.fn(),deleteOfficialLogo:vi.fn(),officialLogoUrl:vi.fn(()=>'/api/v1/settings/official-logo?v=test')
 }));
 

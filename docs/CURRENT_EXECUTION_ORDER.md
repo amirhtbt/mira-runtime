@@ -6,9 +6,9 @@ Default branch: `main`
 
 ## Current gate
 
-**G08 — Production security, performance and deployment hardening**
-GitHub Issue: #9
-State: **ACTIVE — IMPLEMENTATION IN PROGRESS**. G07 was merged, deployed to staging and owner-accepted on 2026-09-11. Production remains untouched. Real-iOS acceptance and provider backup evidence remain explicit G08 acceptance items.
+**G09 — Free pilot, analytics and user feedback**
+GitHub Issue: #10
+State: **ACTIVE — IMPLEMENTATION IN PROGRESS**. G08 was merged, deployed, tested and closed on 2026-09-11 under an explicit owner scope decision. Residual full-iOS scenarios and provider retention/restore-request details are carried into the controlled pilot checklist and are not represented as PASS. Production remains untouched.
 
 G00 / Issue #1 through G04 / Issue #5 are accepted and must not be reopened unless a regression, new platform constraint or explicit owner decision is documented.
 
@@ -89,8 +89,8 @@ G00 / Issue #1 through G04 / Issue #5 are accepted and must not be reopened unle
 7. #57 — G04.1: Complete one-page New Document builder and reusable customer profiles — ACTIVE REMEDIATION
 8. #7 — G06: Persian image/PDF export and Telegram sharing — ACTIVE IMPLEMENTATION
 9. #8 — G07: Invoice history, search, duplicate and lightweight reuse — PASS / CLOSED
-10. #9 — G08: Production security, performance and deployment hardening — ACTIVE
-11. #10 — G09: Free pilot, analytics and user feedback
+10. #9 — G08: Production security, performance and deployment hardening — PASS / CLOSED (recorded residual pilot checks)
+11. #10 — G09: Free pilot, analytics and user feedback — ACTIVE
 12. #11 — G10: Product-market-fit review and expansion decision
 13. #12 — G11: Web/paid migration foundation after positive G10
 
@@ -144,4 +144,4 @@ For sales-document boundaries, also read `docs/SALES_DOCUMENT_DOMAIN.md` before 
 
 ## Immediate next action
 
-Complete G08 hardening on a dedicated branch, run exact-head CI including backup/restore rehearsal, merge only a green SHA and deploy that exact SHA to staging. Then collect provider backup evidence and real-iOS acceptance before G09. Production deployment requires a separate explicit owner go/no-go.
+Implement G09 first-party privacy-safe pilot instrumentation and delayed feedback on a dedicated branch. Run exact-head CI, deploy only the accepted merge SHA to staging, then perform pilot acceptance without introducing a paid wall or sending invoice content to analytics. Production rollout still requires explicit owner authorization.

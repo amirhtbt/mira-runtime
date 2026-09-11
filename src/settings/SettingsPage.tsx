@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from 'react';
-import { businessLogoUrl, deleteBusinessLogo, deleteOfficialLogo, getBusinessSettings, officialLogoUrl, updateBusinessSettings, uploadBusinessLogo, uploadOfficialLogo } from '../api/client';
+import { businessLogoUrl, deleteBusinessLogo, deleteOfficialLogo, getBusinessSettings, officialLogoUrl, recordPilotEvent, updateBusinessSettings, uploadBusinessLogo, uploadOfficialLogo } from '../api/client';
 import type { BusinessSettings, CustomAdjustmentDefault, SettingsResponse } from './types';
 
 interface Summary { businessName?: string; settingsComplete: boolean }
@@ -106,11 +106,12 @@ export function SettingsPage({ onSummaryChange }: Props) {
   function account(index:number,value:Partial<(typeof accounts)[number]>){patch('payment',{accounts:accounts.map((row,i)=>i===index?{...row,...value}:row)});}
   const officialAccounts=s.officialPayment.accounts??[];
   function officialAccount(index:number,value:Partial<(typeof officialAccounts)[number]>){patch('officialPayment',{accounts:officialAccounts.map((row,i)=>i===index?{...row,...value}:row)});}
+  function chooseProfile(next:'informal'|'official'){setProfile(next);void recordPilotEvent('settings_section_used',{section:'profile'}).catch(()=>undefined);}
 
   return <div className="settings-page">
     <div className="settings-profile-switch" role="tablist" aria-label="نوع اطلاعات فروشنده">
-      <button type="button" role="tab" aria-selected={profile === 'informal'} className={profile === 'informal' ? 'active' : ''} onClick={() => setProfile('informal')}><strong>اطلاعات شخصی</strong><small>اسناد غیررسمی</small></button>
-      <button type="button" role="tab" aria-selected={profile === 'official'} className={profile === 'official' ? 'active' : ''} onClick={() => setProfile('official')}><strong>اطلاعات شرکتی</strong><small>اسناد رسمی</small></button>
+      <button type="button" role="tab" aria-selected={profile === 'informal'} className={profile === 'informal' ? 'active' : ''} onClick={() => chooseProfile('informal')}><strong>اطلاعات شخصی</strong><small>اسناد غیررسمی</small></button>
+      <button type="button" role="tab" aria-selected={profile === 'official'} className={profile === 'official' ? 'active' : ''} onClick={() => chooseProfile('official')}><strong>اطلاعات شرکتی</strong><small>اسناد رسمی</small></button>
     </div>
     {profile === 'informal' ? <>
     <section className="settings-intro-card"><div><span className="settings-kicker">شروع سریع</span><h2>اطلاعاتی که روی سند دیده می‌شود</h2><p>برای شروع فقط نام و راه دریافت وجه کافی است. باقی گزینه‌ها اختیاری‌اند.</p></div>

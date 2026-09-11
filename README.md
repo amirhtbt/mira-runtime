@@ -1,6 +1,6 @@
 # Telegram Invoice Mini App — Source of Truth
 
-Status: G07 PASS / G08 Active
+Status: G08 PASS / G09 Active
 Date: 2026-09-11
 
 A Telegram-only Mini App for creating, recording and sharing visually polished pro-forma and final sales invoices, aimed at small Iranian sellers and online shops that do not use accounting software.
@@ -27,7 +27,7 @@ Start every new implementation session from:
 - `docs/CURRENT_EXECUTION_ORDER.md`
 - the current GitHub Gate Issue
 
-Current Gate: **G08 / Issue #9**. G07 history/search/reuse is merged, deployed and owner-accepted. G08 hardening is active; production remains untouched and real-iOS acceptance is still required before G09.
+Current Gate: **G09 / Issue #10**. G08 hardening is merged, deployed, tested and closed under a recorded owner scope decision. The privacy-safe free pilot foundation is active; production remains untouched.
 
 G00 architecture acceptance evidence:
 - `docs/g00/G00_ARCHITECTURE_REVIEW_2026-09-08.md`

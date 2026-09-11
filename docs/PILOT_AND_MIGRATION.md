@@ -22,6 +22,8 @@ Privacy-safe event examples:
 
 Never put customer names, phone numbers, product descriptions, card numbers or invoice note content into event properties.
 
+G09 uses first-party database events with a server-side allowlist. Unknown event names and property keys are rejected. Document/customer IDs are not analytics properties; conversion, export and completion outcomes are aggregated from authoritative tenant-scoped tables. Optional feedback text is stored separately from analytics and explicitly warns users not to enter customer or invoice data.
+
 ## 3. Core metrics
 
 ### Activation
@@ -53,6 +55,8 @@ Keep feedback short:
 - 1–5 value score
 - optional text
 - optional `چه چیزی کم داشت؟`
+
+Eligibility is calculated server-side: at least three issued documents or activity on a second distinct day. A submitted prompt is not shown again. The first invoice is never blocked or interrupted.
 
 ## 5. Positive-signal criteria for expansion
 

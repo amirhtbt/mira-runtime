@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TemplatesPage } from './TemplatesPage';
 import { getBusinessSettings, updateBusinessSettings } from '../api/client';
 
-vi.mock('../api/client', () => ({ getBusinessSettings: vi.fn(), updateBusinessSettings: vi.fn() }));
+vi.mock('../api/client', () => ({ getBusinessSettings: vi.fn(), updateBusinessSettings: vi.fn(), recordPilotEvent:vi.fn().mockResolvedValue(undefined) }));
 const payload = { schemaVersion: 1, version: 1, updatedAt: null, logo: { present: false, mimeType: null, byteSize: null, width: null, height: null, updatedAt: null }, settings: { visual: { templateId: 'minimal', accent: '#214f7b' } } };
 
 describe('TemplatesPage persistence', () => {

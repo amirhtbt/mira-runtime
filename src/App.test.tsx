@@ -67,4 +67,12 @@ describe('G02 app shell', () => {
     fireEvent.click(screen.getByRole('button', { name: /تلاش دوباره/ }));
     expect(retry).toHaveBeenCalledOnce();
   });
+
+  it('shows pilot feedback only after server-side eligibility', () => {
+    const {rerender}=render(<AppShell telegram={adapter()} runtime={runtime} pilotFeedback={{eligible:false,submitted:false,issuedDocuments:1,activeDays:1}} onFeedbackSubmitted={vi.fn()}/>);
+    expect(screen.queryByRole('heading',{name:'میرا چقدر برایتان کاربردی بود؟'})).toBeNull();
+    rerender(<AppShell telegram={adapter()} runtime={runtime} pilotFeedback={{eligible:true,submitted:false,issuedDocuments:3,activeDays:1}} onFeedbackSubmitted={vi.fn()}/>);
+    expect(screen.getByRole('heading',{name:'میرا چقدر برایتان کاربردی بود؟'})).toBeTruthy();
+    expect(screen.getByPlaceholderText(/اطلاعات مشتری/)).toBeTruthy();
+  });
 });

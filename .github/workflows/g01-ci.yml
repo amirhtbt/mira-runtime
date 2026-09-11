@@ -78,6 +78,8 @@ jobs:
         run: php tests/php/run-settings.php
       - name: G04 deterministic sales-document tests
         run: php tests/php/run-sales.php
+      - name: G09 privacy-safe pilot analytics and feedback tests
+        run: php tests/php/run-pilot.php
       - name: Install database backup client
         run: command -v mysqldump >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq default-mysql-client; }
       - name: G08 database backup and restore rehearsal
@@ -190,6 +192,16 @@ jobs:
           grep -F "rehearse-db-backup-restore.sh" .github/workflows/g01-ci.yml >/dev/null
           if grep -nE 'error_log\(.*getMessage\(\)' server/public/index.php; then
             echo 'Raw runtime exception messages must not enter application logs' >&2
+            exit 1
+          fi
+      - name: G09 telemetry privacy boundary stays allowlisted
+        run: |
+          grep -F "class PilotService" server/src/Pilot/PilotService.php >/dev/null
+          grep -F "EVENT_PROPERTIES" server/src/Pilot/PilotService.php >/dev/null
+          grep -F "feedbackStatus" server/src/Pilot/PilotService.php >/dev/null
+          grep -F "source_document_id" server/src/Pilot/PilotService.php >/dev/null
+          if grep -nE "properties.*(customer|phone|item|note|card|account|payment)" server/src/Pilot/PilotService.php; then
+            echo 'Sensitive invoice fields are forbidden in analytics properties' >&2
             exit 1
           fi
 

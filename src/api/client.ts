@@ -129,3 +129,10 @@ export async function listCustomers(query=''):Promise<CustomerProfile[]>{return 
 export async function saveCustomer(input:Omit<CustomerProfile,'id'|'normalizedMobile'>):Promise<CustomerProfile>{return requireData(await request<CustomerProfile>('/api/v1/customers',{method:'POST',body:JSON.stringify(input)}),'customer_save_failed');}
 export async function updateCustomer(id:string,input:Omit<CustomerProfile,'id'|'normalizedMobile'>):Promise<CustomerProfile>{return requireData(await request<CustomerProfile>(`/api/v1/customers/${encodeURIComponent(id)}`,{method:'PUT',body:JSON.stringify(input)}),'customer_update_failed');}
 export async function recordDocumentExport(id:string,input:{format:'png'|'pdf'|'share';byteSize:number}):Promise<void>{requireData(await request<{id:string}>(`/api/v1/documents/${encodeURIComponent(id)}/exports`,{method:'POST',body:JSON.stringify(input)}),'export_record_failed');}
+
+export interface PilotFeedbackStatus {eligible:boolean;submitted:boolean;issuedDocuments:number;activeDays:number}
+export interface PilotStatus {feedback:PilotFeedbackStatus;metrics:Record<string,number|null>}
+export type PilotMissingCategory='templates'|'export'|'history'|'settings'|'payments'|'other';
+export async function getPilotStatus():Promise<PilotStatus>{return requireData(await request<PilotStatus>('/api/v1/pilot/status'),'pilot_status_failed');}
+export async function submitPilotFeedback(input:{score:number;missingCategory:PilotMissingCategory|null;text:string}):Promise<void>{requireData(await request<{id:string;submitted:boolean}>('/api/v1/pilot/feedback',{method:'POST',body:JSON.stringify(input)}),'pilot_feedback_failed');}
+export async function recordPilotEvent(event:'app_open'|'template_selected'|'settings_section_used'|'export_failed',properties:Record<string,string|boolean>={}):Promise<void>{requireData(await request<{recorded:boolean}>('/api/v1/pilot/events',{method:'POST',body:JSON.stringify({event,properties})}),'pilot_event_failed');}

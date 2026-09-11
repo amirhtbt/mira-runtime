@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { getBusinessSettings, updateBusinessSettings } from '../api/client';
+import { getBusinessSettings, recordPilotEvent, updateBusinessSettings } from '../api/client';
 import { fixture } from './fixtures';
 import { InvoiceTemplate } from './InvoiceTemplate';
 import { getTemplate, isTemplateId, templates } from './registry';
@@ -36,7 +36,7 @@ export function TemplatesPage({ preview = false }: { preview?: boolean }) {
   const definition = getTemplate(selected);
   const model = useMemo(() => fixture(selected), [selected]);
   async function save() { setStatus('saving'); setMessage(''); try {
-    if (!preview) await updateBusinessSettings({ visual: { templateId: selected, accent } });
+    if (!preview) { await updateBusinessSettings({ visual: { templateId: selected, accent } }); void recordPilotEvent('template_selected',{template_id:selected}).catch(()=>undefined); }
     setSaved(selected); setSavedAccent(accent); setStatus('ready'); setMessage('قالب فعال ذخیره شد؛ اسناد بعدی با همین قالب صادر می‌شوند.');
   } catch { setStatus('error'); setMessage('ذخیره قالب انجام نشد. دوباره تلاش کنید.'); } }
 
