@@ -101,3 +101,11 @@ jobs:
           STAGING_DB_HOST: localhost
           STAGING_DB_PORT: 3306
         run: bash scripts/deploy-ftps.sh
+
+      - name: Install browser for post-deploy smoke
+        run: npx playwright install --with-deps chromium
+
+      - name: Post-deploy Playwright smoke on exact staging release
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ secrets.STAGING_ORIGIN }}
+        run: npx playwright test tests/e2e/g09-smoke.e2e.spec.ts
