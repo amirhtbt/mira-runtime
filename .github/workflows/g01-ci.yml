@@ -27,6 +27,93 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: RTL viewport visual regression
         run: npm run test:visual
+      - name: Upload Playwright failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-failure-${{ github.sha }}
+          path: |
+            test-results
+            playwright-report
+          if-no-files-found: ignore
+          retention-days: 3
+
+  authenticated-e2e:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: telegram_invoice_e2e
+          MYSQL_USER: tinv
+          MYSQL_PASSWORD: tinv_e2e_password
+          MYSQL_ROOT_PASSWORD: root_e2e_password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot_e2e_password"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      APP_ENV: test
+      APP_ORIGIN: https://app.example.test
+      TELEGRAM_BOT_TOKEN: e2e-test-token-not-a-real-secret
+      SESSION_PEPPER: e2e-test-session-pepper-0123456789abcdef
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: telegram_invoice_e2e
+      DB_USER: tinv
+      DB_PASSWORD: tinv_e2e_password
+      AUTH_MAX_AGE_SECONDS: 300
+      AUTH_FUTURE_SKEW_SECONDS: 30
+      SESSION_IDLE_TTL_SECONDS: 604800
+      SESSION_ABSOLUTE_TTL_SECONDS: 2592000
+      SESSION_TOUCH_INTERVAL_SECONDS: 300
+      TINV_E2E_AUTH: '1'
+      TINV_E2E_BOT_TOKEN: e2e-test-token-not-a-real-secret
+      TINV_E2E_APP_ORIGIN: https://app.example.test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, pdo_mysql, fileinfo
+      - name: Install pinned frontend dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Apply migrations to disposable E2E database
+        run: php server/bin/migrate.php
+      - name: Start disposable PHP API
+        run: |
+          php -S 127.0.0.1:8080 -t server/public server/public/index.php >/tmp/mira-e2e-php.log 2>&1 &
+          for attempt in {1..20}; do
+            if curl --fail --silent http://127.0.0.1:8080/api/v1/health >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/mira-e2e-php.log >&2
+          exit 1
+      - name: Install authenticated E2E browser
+        run: npx playwright install --with-deps chromium
+      - name: Synthetic Telegram A/B tenant-isolation E2E
+        run: npx playwright test tests/e2e/g09-auth-tenant.e2e.spec.ts --project=Desktop-Chrome
+      - name: Print redacted PHP diagnostics on failure
+        if: failure()
+        run: grep -E '^(\[|[A-Za-z].* (GET|POST|PUT|DELETE) /api/)' /tmp/mira-e2e-php.log | tail -n 80 || true
+      - name: Upload authenticated E2E failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: authenticated-e2e-failure-${{ github.sha }}
+          path: |
+            test-results
+            playwright-report
+          if-no-files-found: ignore
+          retention-days: 3
 
   backend:
     runs-on: ubuntu-latest

@@ -70,11 +70,12 @@ jobs:
           find server tests/php -name '*.php' -print0 | xargs -0 -n1 php -l
           php tests/php/run-unit.php
 
-      - name: DB-backed integration and G03 settings tests
+      - name: DB-backed integration, settings, sales and G09 tests
         run: |
           php server/bin/migrate.php
           php tests/php/run-integration.php
           php tests/php/run-settings.php
+          php tests/php/run-sales.php
           php tests/php/run-pilot.php
 
       - name: Prepare shared-host release without artifact retention
@@ -101,3 +102,11 @@ jobs:
           STAGING_DB_HOST: localhost
           STAGING_DB_PORT: 3306
         run: bash scripts/deploy-ftps.sh
+
+      - name: Install browser for post-deploy smoke
+        run: npx playwright install --with-deps chromium
+
+      - name: Post-deploy Playwright smoke on exact staging release
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ secrets.STAGING_ORIGIN }}
+        run: npx playwright test tests/e2e/g09-smoke.e2e.spec.ts

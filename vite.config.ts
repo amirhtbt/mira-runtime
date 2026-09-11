@@ -11,7 +11,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
-    exclude: ['tests/visual/**', 'node_modules/**', 'dist/**']
+    exclude: ['tests/visual/**', 'tests/e2e/**', 'node_modules/**', 'dist/**']
   },
   server: {
     proxy: {
