@@ -75,9 +75,9 @@ test('keyboard navigation, safe-area variables and approved compact five-slot RT
   }
 
   await page.getByRole('button', { name: 'ساخت سند جدید' }).last().click();
-  await expect(page.getByRole('heading', { name: 'چه سندی می‌سازید؟' })).toBeVisible();
-  await expect(page.getByRole('button', { name: /پیش‌فاکتور/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: /فاکتور فروش/ })).toBeVisible();
+  await expect(page.getByLabel('نام مشتری یا شرکت')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'پیش‌فاکتور' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'فاکتور فروش' })).toBeVisible();
   const target = await page.getByRole('button', { name: 'ساخت سند جدید' }).last().boundingBox();
   expect(target?.width).toBeGreaterThanOrEqual(44);
   expect(target?.height).toBeGreaterThanOrEqual(44);
