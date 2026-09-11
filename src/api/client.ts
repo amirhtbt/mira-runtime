@@ -24,6 +24,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<{ statu
     credentials: 'include'
   });
 
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!contentType.toLowerCase().includes('application/json')) {
+    throw new Error(`api_non_json_${response.status}`);
+  }
   const body = (await response.json()) as ApiEnvelope<T>;
   return { status: response.status, body };
 }

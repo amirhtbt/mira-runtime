@@ -22,15 +22,16 @@ export function TemplatesPage({ preview = false }: { preview?: boolean }) {
   const [zoom, setZoom] = useState(0.52);
   const [status, setStatus] = useState<'loading'|'ready'|'saving'|'error'>('loading');
   const [message, setMessage] = useState('');
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const dialog = useRef<HTMLDialogElement>(null);
 
-  useEffect(() => { let cancelled = false; void (async () => { try {
+  useEffect(() => { let cancelled = false; setStatus('loading'); setMessage(''); void (async () => { try {
     const payload = preview ? null : await getBusinessSettings();
     if (cancelled) return;
     const id = normalizeTemplate(payload?.settings.visual.templateId ?? 'minimal');
     const activeAccent = payload?.settings.visual.accent ?? '#214f7b';
     setSaved(id); setSelected(id); setAccent(activeAccent); setSavedAccent(activeAccent); setStatus('ready');
-  } catch { if (!cancelled) { setStatus('error'); setMessage('قالب‌ها بارگذاری نشدند. دوباره تلاش کنید.'); } } })(); return () => { cancelled = true; }; }, [preview]);
+  } catch { if (!cancelled) { setStatus('error'); setMessage('تنظیمات قالب از سرور دریافت نشد. پیش‌نمایش‌ها در دسترس‌اند؛ برای بازیابی قالب فعال دوباره تلاش کنید.'); } } })(); return () => { cancelled = true; }; }, [preview, loadAttempt]);
 
   const definition = getTemplate(selected);
   const model = useMemo(() => fixture(selected), [selected]);
@@ -49,7 +50,7 @@ export function TemplatesPage({ preview = false }: { preview?: boolean }) {
       </button>)}</section>
       <section className="theme-panel"><div><h2>رنگ قالب</h2><p>رنگ فقط ظاهر را تغییر می‌دهد و روی اطلاعات و مبالغ اثری ندارد.</p></div><div className="theme-swatches">{themes.map(theme => <button type="button" title={theme.name} aria-label={theme.name} aria-pressed={accent === theme.value} className={accent === theme.value ? 'active' : ''} style={{ background: theme.value }} onClick={() => setAccent(theme.value)} key={theme.value}/>)}</div><label>رنگ سفارشی<input aria-label="رنگ سفارشی" type="color" value={accent} onChange={event => setAccent(event.target.value)}/></label></section>
       <section className="template-preview-panel"><div className="template-preview-copy"><span className="settings-kicker">پیش‌نمایش A4 افقی</span><h2>{definition.name}</h2><p>{definition.structure}</p><dl><div><dt>مناسب برای</dt><dd>{definition.bestFor}</dd></div><div><dt>ابعاد خروجی</dt><dd>A4 افقی، ۲۹۷ × ۲۱۰ میلی‌متر</dd></div></dl><div className="zoom-controls" aria-label="کنترل بزرگ‌نمایی"><button onClick={() => setZoom(value => Math.max(.32, value - .1))} aria-label="کوچک‌نمایی">−</button><output>{Math.round(zoom * 100).toLocaleString('fa-IR')}٪</output><button onClick={() => setZoom(value => Math.min(1, value + .1))} aria-label="بزرگ‌نمایی">+</button><button onClick={() => setZoom(.52)}>اندازه مناسب</button></div><button className="secondary-button full-preview-button" onClick={() => dialog.current?.showModal()}>پیش‌نمایش کامل</button></div><div className="landscape-preview-viewport">{previewSheet}</div></section>
-      {message && <p className={`template-message${status === 'error' ? ' error' : ''}`} role={status === 'error' ? 'alert' : 'status'}>{message}</p>}
+      {message && <div className={`template-message${status === 'error' ? ' error' : ''}`} role={status === 'error' ? 'alert' : 'status'}><span>{message}</span>{status === 'error' && <button type="button" onClick={() => setLoadAttempt(value => value + 1)}>تلاش دوباره</button>}</div>}
       <div className="template-save"><div><strong>{definition.name}</strong><small>{selected === saved && accent === savedAccent ? 'قالب فعال' : 'تغییر ذخیره‌نشده'}</small></div><button className="primary-button" disabled={status === 'saving' || (selected === saved && accent === savedAccent)} onClick={save}>{status === 'saving' ? 'در حال ذخیره…' : 'فعال‌کردن قالب'}</button></div>
       <dialog className="template-dialog" ref={dialog}><button className="dialog-close" aria-label="بستن پیش‌نمایش" onClick={() => dialog.current?.close()}>×</button><div className="dialog-layout"><aside><h2>{definition.name}</h2><p>{definition.structure}</p><div className="zoom-controls"><button onClick={() => setZoom(value => Math.max(.32, value - .1))}>−</button><output>{Math.round(zoom * 100).toLocaleString('fa-IR')}٪</output><button onClick={() => setZoom(value => Math.min(1, value + .1))}>+</button></div></aside><div className="dialog-sheet">{previewSheet}</div></div></dialog>
     </>}

@@ -36,9 +36,11 @@ describe('G02 app shell', () => {
   it('turns the central CTA into a back-button-aware create intent', () => {
     const telegram = adapter(); render(<AppShell telegram={telegram} runtime={runtime} />);
     fireEvent.click(screen.getAllByRole('button', { name: 'ساخت سند جدید' })[0]);
-    expect(screen.getByRole('heading', { name: 'چه سندی می‌سازید؟' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /پیشنهاد قیمت/ })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /کامل پرداخت شده/ })).toBeTruthy();
+    expect(screen.getByLabelText('نام مشتری یا شرکت')).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'چه سندی می‌سازید؟' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'پیش‌فاکتور' }).getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: 'فاکتور فروش' }));
+    expect(screen.getByRole('button', { name: 'فاکتور فروش' }).getAttribute('aria-pressed')).toBe('true');
     expect(telegram.haptic).toHaveBeenCalledWith('light');
     expect(telegram.setBackHandler).toHaveBeenCalledWith(expect.any(Function));
   });
