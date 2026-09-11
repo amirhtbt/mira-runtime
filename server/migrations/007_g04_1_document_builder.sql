@@ -25,7 +25,6 @@ ALTER TABLE sales_document_items
 UPDATE business_settings
 SET settings_json = JSON_SET(
     settings_json,
-    '$.financial.taxEnabled', TRUE,
     '$.financial.taxRateBasisPoints',
     CASE
         WHEN COALESCE(JSON_EXTRACT(settings_json, '$.financial.taxRateBasisPoints'), 0) = 0 THEN 1000

@@ -70,7 +70,7 @@ final class SettingsSchema
                 ],
                 'shippingAmountBaseUnit' => '0',
                 'serviceFeeAmountBaseUnit' => '0',
-                'taxEnabled' => true,
+                'taxEnabled' => false,
                 'taxRateBasisPoints' => 1000,
                 'customAdjustments' => [],
             ],
