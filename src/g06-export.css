@@ -1,0 +1,10 @@
+.app-frame:has(.builder-page) .topbar{min-height:58px;padding-block:7px}
+.app-frame:has(.builder-page) .brand-mark{width:38px;height:38px}
+.export-actions{display:grid;gap:9px;margin-top:15px;padding-top:15px;border-top:1px solid var(--line)}
+.export-buttons{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.export-buttons button{min-height:44px;border:1px solid var(--brand);border-radius:12px;background:var(--surface);color:var(--brand);font:inherit;font-weight:800}
+.export-buttons .primary-button{grid-column:1/-1;background:var(--brand);color:var(--brand-text)}
+.export-buttons button:disabled{opacity:.55}
+.export-actions>p{margin:0;color:var(--muted);font-size:.78rem;line-height:1.7}
+.export-render-stage{position:fixed;left:-20000px;top:0;width:1123px;pointer-events:none}
+.export-render-stage>div{width:1123px;min-height:794px;background:#fff}

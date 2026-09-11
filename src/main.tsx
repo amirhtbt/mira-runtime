@@ -8,6 +8,7 @@ import './g04-sales.css';
 import './g04-documents.css';
 import './g05-templates.css';
 import './g05-template-theme.css';
+import './g06-export.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

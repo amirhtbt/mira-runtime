@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { AppShell, StatusView, type HomeData } from './App';
 import { TelegramAdapter, type TelegramRuntimeSnapshot } from './telegram/adapter';
@@ -43,6 +43,23 @@ describe('G02 app shell', () => {
     expect(screen.getByRole('button', { name: 'فاکتور فروش' }).getAttribute('aria-pressed')).toBe('true');
     expect(telegram.haptic).toHaveBeenCalledWith('light');
     expect(telegram.setBackHandler).toHaveBeenCalledWith(expect.any(Function));
+  });
+
+  it('Telegram Back closes preview first and keeps the auto-saved form', async () => {
+    localStorage.clear(); const telegram = adapter();
+    render(<AppShell telegram={telegram} runtime={runtime} businessId="tenant-a" />);
+    fireEvent.click(screen.getAllByRole('button', { name: 'ساخت سند جدید' })[0]);
+    fireEvent.change(screen.getByLabelText('نام مشتری یا شرکت'), { target: { value: 'مشتری محفوظ' } });
+    fireEvent.click(screen.getByText('سند رسمی', { exact: true }));
+    fireEvent.change(screen.getByLabelText('شناسه ملی'), { target: { value: '1234567890' } });
+    fireEvent.click(screen.getByRole('button', { name: 'پیش‌نمایش کامل' }));
+    expect(screen.getByRole('dialog', { name: 'پیش‌نمایش کامل سند' })).toBeTruthy();
+    const calls=vi.mocked(telegram.setBackHandler).mock.calls;const back=calls.at(-1)?.[0];
+    await act(async()=>back?.());
+    expect(screen.queryByRole('dialog', { name: 'پیش‌نمایش کامل سند' })).toBeNull();
+    expect((screen.getByLabelText('نام مشتری یا شرکت') as HTMLInputElement).value).toBe('مشتری محفوظ');
+    expect((screen.getByLabelText('شناسه ملی') as HTMLInputElement).value).toBe('1234567890');
+    expect(JSON.parse(localStorage.getItem('mira:sales-draft:tenant-a')||'{}').nationalId).toBe('1234567890');
   });
 
   it('renders designed offline and retry states', () => {

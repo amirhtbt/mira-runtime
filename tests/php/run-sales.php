@@ -78,8 +78,16 @@ Test::run('G04 tenant and customer scope prevent cross-business access',function
 
 Test::run('G04 finalizes immutable proforma with settings snapshot',function()use($service,$settings,$one,&$proforma,$now):void{
     $proforma=$service->finalize($one->context->businessId,$proforma['id']); Test::equals('issued',$proforma['lifecycleStatus']);
+    Test::assert(isset($proforma['settingsSnapshot']['visual']['templateId']));
     Test::throws(fn()=>$service->updateDraft($one->context->businessId,$proforma['id'],['version'=>$proforma['version'],'items'=>[['title'=>'تغییر','quantityMilli'=>'1000','unitPriceBaseUnit'=>'1']]]),SalesValidationException::class,'finalized_document_immutable');
     $settings->update($one->context->businessId,['seller'=>['businessName'=>'نام بعدی']],$now+1);
+});
+
+Test::run('G06 records tenant-scoped export evidence only for issued documents',function()use($service,$one,$two,&$proforma,$pdo):void{
+    $result=$service->recordExport($one->context->businessId,$proforma['id'],['format'=>'pdf','byteSize'=>120000]);
+    Test::equals('pdf',$result['format']);
+    Test::throws(fn()=>$service->recordExport($two->context->businessId,$proforma['id'],['format'=>'png','byteSize'=>10]),SalesValidationException::class,'document_not_found');
+    $count=$pdo->query('SELECT COUNT(*) FROM document_exports')->fetchColumn();Test::equals('1',(string)$count);
 });
 
 Test::run('G04 records 3m deposit, rejects overpayment, then settles remaining 7m idempotently',function()use($service,$one,&$proforma):void{
