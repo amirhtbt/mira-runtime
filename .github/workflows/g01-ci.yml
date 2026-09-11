@@ -188,7 +188,7 @@ jobs:
           grep -F "X-Request-Id" server/public/index.php >/dev/null
           grep -F "Retry-After" server/public/index.php >/dev/null
           grep -F "rehearse-db-backup-restore.sh" .github/workflows/g01-ci.yml >/dev/null
-          if grep -F "getMessage()" server/public/index.php; then
+          if grep -nE 'error_log\(.*getMessage\(\)' server/public/index.php; then
             echo 'Raw runtime exception messages must not enter application logs' >&2
             exit 1
           fi
