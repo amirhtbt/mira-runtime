@@ -18,6 +18,7 @@ export interface SellerSettings {
 }
 
 export interface PaymentSettings {
+  accounts?: Array<{cardNumber:string;sheba:string;bankName:string;accountHolder:string}>;
   cardNumber: string;
   accountNumber: string;
   sheba: string;

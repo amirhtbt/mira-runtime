@@ -85,15 +85,17 @@ export function businessLogoUrl(updatedAt: string | null): string {
 
 export type DocumentType = 'proforma' | 'invoice';
 export interface SalesDocument {
-  id: string; customerId: string; customerName: string; documentType: DocumentType; lifecycleStatus: 'draft'|'issued'|'cancelled';
+  id: string; customerId: string; customerName: string; customerPhone?:string; documentType: DocumentType; lifecycleStatus: 'draft'|'issued'|'cancelled';
   settlementStatus: 'unpaid'|'partial'|'paid'; documentNumber: string|null; sourceDocumentId: string|null;
   currencyUnit: 'toman'|'rial'; subtotalBaseUnit: string; discountBaseUnit: string; surchargeBaseUnit: string;
   grandTotalBaseUnit: string; paidAmountBaseUnit: string; remainingAmountBaseUnit: string; version: number;
-  items: Array<{title:string;description:string;quantityMilli:string|number;unitPriceBaseUnit:string|number;lineTotalBaseUnit:string|number;position:number}>;
+  isOfficial?:boolean;nationalId?:string;customerAddress?:string;shippingMethod?:string;validityDays?:number|null;notes?:string;issueDate?:string|null;validUntil?:string|null;taxRateBasisPoints?:number;taxTotalBaseUnit?:string;
+  items: Array<{title:string;description:string;quantityMilli:string|number;unitPriceBaseUnit:string|number;discountBaseUnit?:string|number;taxBaseUnit?:string|number;lineTotalBaseUnit:string|number;position:number}>;
   payments?: Array<{id:string;amount_base_unit:string;paid_at:string;method:string;reference_text:string;note:string;status:string}>;
   canIssueFinalInvoice: boolean;
 }
-export interface DraftInput { documentType:DocumentType; customer:{displayName:string;phone?:string}; items:Array<{title:string;description?:string;quantityMilli:string;unitPriceBaseUnit:string}> }
+export interface CustomerProfile {id:string;displayName:string;phone:string;normalizedMobile:string;address:string;isOfficial:boolean;nationalId:string}
+export interface DraftInput { documentType:DocumentType; customer:{id?:string;displayName:string;phone:string;nationalId?:string};isOfficial:boolean;address?:string;shippingMethod?:string;validityDays?:number|null;notes?:string; items:Array<{title:string;description?:string;quantityMilli:string;unitPriceBaseUnit:string;discountBaseUnit?:string}> }
 
 export async function createSalesDraft(input:DraftInput):Promise<SalesDocument>{ return requireData(await request<SalesDocument>('/api/v1/documents',{method:'POST',body:JSON.stringify(input)}),'document_create_failed'); }
 export async function getSalesDocument(id:string):Promise<SalesDocument>{ return requireData(await request<SalesDocument>(`/api/v1/documents/${encodeURIComponent(id)}`),'document_load_failed'); }
@@ -102,3 +104,6 @@ export async function finalizeSalesDocument(id:string,paidConfirmed=false):Promi
 export async function addProformaPayment(id:string,amountBaseUnit:string,idempotencyKey:string):Promise<SalesDocument>{ return requireData(await request<SalesDocument>(`/api/v1/documents/${encodeURIComponent(id)}/payments`,{method:'POST',body:JSON.stringify({amountBaseUnit,idempotencyKey})}),'payment_failed'); }
 export async function issueFinalInvoice(id:string):Promise<SalesDocument>{ return requireData(await request<SalesDocument>(`/api/v1/documents/${encodeURIComponent(id)}/final-invoice`,{method:'POST',body:'{}'}),'conversion_failed'); }
 export async function listSalesDocuments():Promise<SalesDocument[]>{ return requireData(await request<{documents:SalesDocument[]}>('/api/v1/documents'),'documents_load_failed').documents; }
+export async function findCustomers(phone:string):Promise<CustomerProfile[]>{return requireData(await request<{customers:CustomerProfile[]}>(`/api/v1/customers?phone=${encodeURIComponent(phone)}`),'customer_search_failed').customers;}
+export async function saveCustomer(input:Omit<CustomerProfile,'id'|'normalizedMobile'>):Promise<CustomerProfile>{return requireData(await request<CustomerProfile>('/api/v1/customers',{method:'POST',body:JSON.stringify(input)}),'customer_save_failed');}
+export async function updateCustomer(id:string,input:Omit<CustomerProfile,'id'|'normalizedMobile'>):Promise<CustomerProfile>{return requireData(await request<CustomerProfile>(`/api/v1/customers/${encodeURIComponent(id)}`,{method:'PUT',body:JSON.stringify(input)}),'customer_update_failed');}
