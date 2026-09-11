@@ -126,6 +126,16 @@ try {
         if (!is_string($initData)) Json::error('init_data_required', 'initData is required', 422);
 
         $validator = new InitDataValidator($config->telegramBotToken, $config->authMaxAgeSeconds, $config->authFutureSkewSeconds);
+        $validated = $validator->validate($initData);
+        $oldToken = (string) ($_COOKIE[$cookieName] ?? '');
+        $existing = $sessions->authenticate($oldToken);
+        if ($existing && $sessions->belongsToTelegramIdentity($existing, (string) $validated->user['id'])) {
+            Json::ok(['userId' => $existing->userId, 'businessId' => $existing->businessId]);
+        }
+        if ($existing) {
+            $sessions->revoke($oldToken);
+            $clearCookie();
+        }
         $auth = new AuthService($pdo, $validator, $sessions, $config->authMaxAgeSeconds + $config->authFutureSkewSeconds);
         $result = $auth->authenticateTelegram($initData, null, (string) ($_SERVER['HTTP_USER_AGENT'] ?? ''));
         $setCookie($result->sessionToken, $result->absoluteExpiresAt);
