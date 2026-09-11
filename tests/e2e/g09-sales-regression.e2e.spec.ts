@@ -13,6 +13,16 @@ async function fillBaseProforma(page: import('@playwright/test').Page, amount = 
   await page.getByLabel('مبلغ واحد (ریال) *').fill(amount);
 }
 
+async function expectNoHorizontalOverflow(page: import('@playwright/test').Page) {
+  const metrics = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    clientWidth: document.documentElement.clientWidth,
+    scrollLeft: document.documentElement.scrollLeft
+  }));
+  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth);
+  expect(Math.abs(metrics.scrollLeft)).toBe(0);
+}
+
 test.describe('G09 phases 4–6 browser regression', () => {
   test('draft survives reload and repeated preview without losing entered data', async ({ page }) => {
     await openBuilder(page);
@@ -66,6 +76,7 @@ test.describe('G09 phases 4–6 browser regression', () => {
     await expect(page.getByText(/پیش‌فاکتور · پیش‌نویس/)).toBeVisible();
     await page.getByRole('button', { name: 'صدور پیش‌فاکتور' }).click();
     await expect(page.getByText(/پیش‌فاکتور · صادرشده/)).toBeVisible();
+    await expectNoHorizontalOverflow(page);
 
     await page.getByLabel('مبلغ پرداخت').fill('3000000');
     await page.getByRole('button', { name: 'ثبت پرداخت', exact: true }).click();
@@ -90,5 +101,6 @@ test.describe('G09 phases 4–6 browser regression', () => {
     await expect(page.getByText(/جزئیات اقساط در این فاکتور نمایش داده نمی‌شود/)).toBeVisible();
     await expect(page.getByText(/بیعانه/)).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'صدور فاکتور نهایی' })).toHaveCount(0);
+    await expectNoHorizontalOverflow(page);
   });
 });
