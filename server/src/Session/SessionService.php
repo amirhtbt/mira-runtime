@@ -80,6 +80,17 @@ final readonly class SessionService
         return new SessionContext((string) $row['user_id'], (string) $row['business_id']);
     }
 
+    public function belongsToTelegramIdentity(SessionContext $context, string $telegramUserId): bool
+    {
+        if (!preg_match('/^[1-9]\d{0,18}$/', $telegramUserId)) return false;
+        $stmt = $this->pdo->prepare(
+            'SELECT 1 FROM telegram_identities ti INNER JOIN businesses b ON b.owner_user_id = ti.user_id '
+            . 'WHERE ti.user_id = ? AND ti.telegram_user_id = ? AND b.id = ? LIMIT 1'
+        );
+        $stmt->execute([$context->userId, $telegramUserId, $context->businessId]);
+        return (bool) $stmt->fetchColumn();
+    }
+
     /** @return array{token:string,context:SessionContext,absolute_expires_at:int}|null */
     public function rotate(string $token, ?int $now = null, string $userAgent = ''): ?array
     {

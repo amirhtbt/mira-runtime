@@ -65,6 +65,18 @@ describe('G03 SettingsPage', () => {
     expect(await screen.findByText('تغییرات ذخیره شد.')).toBeTruthy();
   });
 
+  it('shows personal and company settings in separate selectable views', async () => {
+    render(<SettingsPage />);
+    await screen.findByRole('heading', { name: 'اطلاعاتی که روی سند دیده می‌شود' });
+    expect(screen.queryByLabelText('نام شرکت *')).toBeNull();
+    fireEvent.click(screen.getByRole('tab', { name: /اطلاعات شرکتی/ }));
+    expect(screen.getByLabelText('نام شرکت *')).toBeTruthy();
+    expect(screen.queryByLabelText('نام کسب‌وکار')).toBeNull();
+    fireEvent.click(screen.getByRole('tab', { name: /اطلاعات شخصی/ }));
+    expect(screen.getByLabelText('نام کسب‌وکار')).toBeTruthy();
+    expect(screen.queryByLabelText('نام شرکت *')).toBeNull();
+  });
+
   it('rejects unsupported or oversized logo files before API upload', async () => {
     render(<SettingsPage />);
     const input = await screen.findByLabelText(/^افزودن لوگو$/);

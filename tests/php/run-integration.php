@@ -73,3 +73,12 @@ Test::run('different Telegram identities never share internal tenant scope', fun
     Test::assert($one->context->userId !== $two->context->userId);
     Test::assert($one->context->businessId !== $two->context->businessId);
 });
+
+Test::run('a session is accepted only for its bound Telegram identity', function () use ($auth, $sessions, $config, $now): void {
+    $one = $auth->authenticateTelegram(TelegramFixture::user('900000008', $now - 2, $config->telegramBotToken), $now);
+    $two = $auth->authenticateTelegram(TelegramFixture::user('900000009', $now - 2, $config->telegramBotToken), $now);
+    Test::assert($sessions->belongsToTelegramIdentity($one->context, '900000008'));
+    Test::assert(!$sessions->belongsToTelegramIdentity($one->context, '900000009'));
+    Test::assert($sessions->belongsToTelegramIdentity($two->context, '900000009'));
+    Test::assert(!$sessions->belongsToTelegramIdentity($two->context, '900000008'));
+});
