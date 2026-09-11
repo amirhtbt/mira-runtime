@@ -57,7 +57,7 @@ jobs:
           --health-retries=10
     env:
       APP_ENV: test
-      APP_ORIGIN: http://127.0.0.1:4173
+      APP_ORIGIN: https://app.example.test
       TELEGRAM_BOT_TOKEN: e2e-test-token-not-a-real-secret
       SESSION_PEPPER: e2e-test-session-pepper-0123456789abcdef
       DB_HOST: 127.0.0.1
@@ -72,7 +72,7 @@ jobs:
       SESSION_TOUCH_INTERVAL_SECONDS: 300
       TINV_E2E_AUTH: '1'
       TINV_E2E_BOT_TOKEN: e2e-test-token-not-a-real-secret
-      TINV_E2E_APP_ORIGIN: http://127.0.0.1:4173
+      TINV_E2E_APP_ORIGIN: https://app.example.test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
