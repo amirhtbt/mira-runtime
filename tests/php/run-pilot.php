@@ -24,7 +24,7 @@ $two = $auth->authenticateTelegram(TelegramFixture::user('909000002', $now - 2, 
 $pilot = new PilotService($pdo, $config->sessionPepper);
 $sales = new SalesDocumentService($pdo, new SettingsRepository($pdo));
 
-Test::run('G09 event schema rejects content and arbitrary telemetry', function () use ($pilot, $one, $now): void {
+Test::run('G09 event schema rejects content and arbitrary telemetry', function () use ($pilot, $one, $now, $pdo): void {
     $pilot->recordClient($one->context->userId, $one->context->businessId, ['event' => 'app_open', 'properties' => []], $now - 86400);
     $pilot->recordClient($one->context->userId, $one->context->businessId, ['event' => 'app_open', 'properties' => []], $now - 86400);
     Test::throws(fn() => $pilot->recordClient($one->context->userId, $one->context->businessId, ['event' => 'customer_viewed', 'properties' => []], $now), PilotValidationException::class, 'event_not_allowed');
