@@ -11,9 +11,12 @@ use Tinv\Auth\ReplayDetected;
 use Tinv\Config;
 use Tinv\Database;
 use Tinv\Session\SessionService;
+use Tinv\Http\RateLimiter;
+use Tinv\Http\RateLimitExceeded;
 
 $config = Config::fromEnvironment();
 $pdo = Database::connect($config);
+$pdo->exec('DELETE FROM rate_limit_buckets');
 $pdo->exec('DELETE FROM telegram_auth_replays');
 $pdo->exec('DELETE FROM sessions');
 $pdo->exec('DELETE FROM telegram_identities');
@@ -81,4 +84,15 @@ Test::run('a session is accepted only for its bound Telegram identity', function
     Test::assert(!$sessions->belongsToTelegramIdentity($one->context, '900000009'));
     Test::assert($sessions->belongsToTelegramIdentity($two->context, '900000009'));
     Test::assert(!$sessions->belongsToTelegramIdentity($two->context, '900000008'));
+});
+
+Test::run('G08 rate limiter is atomic, resettable and stores no raw scope', function () use ($pdo, $config, $now): void {
+    $limiter = new RateLimiter($pdo, $config->sessionPepper);
+    $scope = 'auth-ip:203.0.113.42';
+    $limiter->consume($scope, 'auth_test', 2, 60, $now);
+    $limiter->consume($scope, 'auth_test', 2, 60, $now + 1);
+    Test::throws(fn() => $limiter->consume($scope, 'auth_test', 2, 60, $now + 2), RateLimitExceeded::class);
+    $stored = $pdo->query("SELECT scope_hash FROM rate_limit_buckets WHERE action_key='auth_test'")->fetchColumn();
+    Test::assert(is_string($stored) && strlen($stored) === 64 && $stored !== $scope);
+    $limiter->consume($scope, 'auth_test', 2, 60, $now + 61);
 });

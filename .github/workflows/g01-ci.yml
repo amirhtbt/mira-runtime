@@ -78,13 +78,20 @@ jobs:
         run: php tests/php/run-settings.php
       - name: G04 deterministic sales-document tests
         run: php tests/php/run-sales.php
+      - name: Install database backup client
+        run: command -v mysqldump >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq default-mysql-client; }
+      - name: G08 database backup and restore rehearsal
+        env:
+          DB_ADMIN_USER: root
+          DB_ADMIN_PASSWORD: root_test_password
+        run: bash scripts/rehearse-db-backup-restore.sh
 
   deployment-safety:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Shell syntax check
-        run: bash -n scripts/prepare-shared-host-release.sh scripts/deploy-ftps.sh scripts/package-shared-host.sh
+        run: bash -n scripts/prepare-shared-host-release.sh scripts/deploy-ftps.sh scripts/package-shared-host.sh scripts/rehearse-db-backup-restore.sh
       - name: FTPS certificate verification may not be disabled
         run: |
           if grep -E 'ssl:verify-certificate[[:space:]]+(no|false|0)' scripts/deploy-ftps.sh; then
@@ -173,6 +180,16 @@ jobs:
           grep -F "source_document_id" server/migrations/003_g04_sales_documents.sql >/dev/null
           if grep -R -E '\b(float|double)\b' server/src/Sales; then
             echo 'Floating point money is forbidden in G04' >&2
+            exit 1
+          fi
+      - name: G08 rate limiting, correlation and recovery controls stay present
+        run: |
+          grep -F "class RateLimiter" server/src/Http/RateLimiter.php >/dev/null
+          grep -F "X-Request-Id" server/public/index.php >/dev/null
+          grep -F "Retry-After" server/public/index.php >/dev/null
+          grep -F "rehearse-db-backup-restore.sh" .github/workflows/g01-ci.yml >/dev/null
+          if grep -F "getMessage()" server/public/index.php; then
+            echo 'Raw runtime exception messages must not enter application logs' >&2
             exit 1
           fi
 

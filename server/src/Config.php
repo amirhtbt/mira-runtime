@@ -22,6 +22,8 @@ final readonly class Config
         public int $sessionIdleTtlSeconds,
         public int $sessionAbsoluteTtlSeconds,
         public int $sessionTouchIntervalSeconds,
+        public int $authRateLimitPerMinute,
+        public int $writeRateLimitPerMinute,
     ) {}
 
     public static function fromEnvironment(): self
@@ -53,6 +55,8 @@ final readonly class Config
             Env::int('SESSION_IDLE_TTL_SECONDS', 604800),
             Env::int('SESSION_ABSOLUTE_TTL_SECONDS', 2592000),
             Env::int('SESSION_TOUCH_INTERVAL_SECONDS', 300),
+            Env::int('AUTH_RATE_LIMIT_PER_MINUTE', 30),
+            Env::int('WRITE_RATE_LIMIT_PER_MINUTE', 120),
         );
 
         if ($self->authMaxAgeSeconds < 60 || $self->authMaxAgeSeconds > 3600) {
@@ -63,6 +67,9 @@ final readonly class Config
         }
         if (strlen($self->sessionPepper) < 32) {
             throw new \RuntimeException('SESSION_PEPPER must be at least 32 characters');
+        }
+        if ($self->authRateLimitPerMinute < 5 || $self->authRateLimitPerMinute > 300 || $self->writeRateLimitPerMinute < 10 || $self->writeRateLimitPerMinute > 1000) {
+            throw new \RuntimeException('Invalid rate limit configuration');
         }
 
         return $self;

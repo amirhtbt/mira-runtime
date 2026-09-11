@@ -13,6 +13,8 @@ use Tinv\Config;
 use Tinv\Database;
 use Tinv\Http\Json;
 use Tinv\Http\OriginGuard;
+use Tinv\Http\RateLimiter;
+use Tinv\Http\RateLimitExceeded;
 use Tinv\Session\SessionContext;
 use Tinv\Session\SessionService;
 use Tinv\Sales\SalesDocumentService;
@@ -25,6 +27,9 @@ use Tinv\Settings\SettingsRepository;
 use Tinv\Settings\SettingsService;
 use Tinv\Settings\SettingsValidationException;
 
+$incomingRequestId = (string) ($_SERVER['HTTP_X_REQUEST_ID'] ?? '');
+$requestId = preg_match('/^[A-Za-z0-9._-]{8,64}$/', $incomingRequestId) ? $incomingRequestId : bin2hex(random_bytes(16));
+header('X-Request-Id: ' . $requestId);
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: no-referrer');
 header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
@@ -34,7 +39,7 @@ $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 
 if ($method === 'GET' && $path === '/api/v1/health') {
-    Json::ok(['service' => 'telegram-invoice-api', 'gate' => 'G04']);
+    Json::ok(['service' => 'telegram-invoice-api', 'gate' => 'G08']);
 }
 
 try {
@@ -54,6 +59,7 @@ try {
     $logoService = new LogoService($pdo);
     $officialLogoService = new LogoService($pdo, 'business_official_logo_assets');
     $originGuard = new OriginGuard($config->appOrigin);
+    $rateLimiter = new RateLimiter($pdo, $config->sessionPepper);
     $cookieName = $config->isProductionLike() ? '__Host-tinv_session' : 'tinv_session';
 
     $setCookie = static function (string $token, int $expiresAt) use ($cookieName, $config): void {
@@ -74,10 +80,13 @@ try {
             'samesite' => 'Lax',
         ]);
     };
-    $sessionContext = static function () use ($sessions, $cookieName): SessionContext {
+    $sessionContext = static function () use ($sessions, $cookieName, $rateLimiter, $config, $method): SessionContext {
         $token = (string) ($_COOKIE[$cookieName] ?? '');
         $context = $sessions->authenticate($token);
         if (!$context) Json::error('unauthenticated', 'No active session', 401);
+        if (in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
+            $rateLimiter->consume('business:' . $context->businessId, 'write', $config->writeRateLimitPerMinute);
+        }
         return $context;
     };
 
@@ -123,6 +132,7 @@ try {
     }
 
     if ($method === 'POST' && $path === '/api/v1/auth/telegram') {
+        $rateLimiter->consume('auth-ip:' . (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown'), 'auth', $config->authRateLimitPerMinute);
         $body = Json::body();
         $initData = $body['initData'] ?? null;
         if (!is_string($initData)) Json::error('init_data_required', 'initData is required', 422);
@@ -300,6 +310,9 @@ try {
     }
 
     Json::error('not_found', 'Route not found', 404);
+} catch (RateLimitExceeded $exception) {
+    header('Retry-After: ' . $exception->retryAfterSeconds);
+    Json::error('rate_limited', 'Too many requests; retry later', 429);
 } catch (ValidationException $exception) {
     Json::error('telegram_' . $exception->reason, 'Telegram authentication rejected', 401);
 } catch (ReplayDetected) {
@@ -319,9 +332,9 @@ try {
     if ($exception->getMessage() === 'request_body_invalid') {
         Json::error('request_body_invalid', 'Invalid request body', 400);
     }
-    error_log('[tinv] runtime error: ' . $exception->getMessage());
+    error_log(json_encode(['event'=>'runtime_error','request_id'=>$requestId,'method'=>$method,'path'=>$path,'type'=>get_class($exception)], JSON_UNESCAPED_SLASHES));
     Json::error('server_configuration', 'Server configuration error', 500);
 } catch (\Throwable $exception) {
-    error_log('[tinv] unhandled: ' . get_class($exception) . ': ' . $exception->getMessage());
+    error_log(json_encode(['event'=>'unhandled_error','request_id'=>$requestId,'method'=>$method,'path'=>$path,'type'=>get_class($exception)], JSON_UNESCAPED_SLASHES));
     Json::error('server_error', 'Unexpected server error', 500);
 }
