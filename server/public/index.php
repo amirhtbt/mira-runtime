@@ -15,6 +15,8 @@ use Tinv\Http\Json;
 use Tinv\Http\OriginGuard;
 use Tinv\Http\RateLimiter;
 use Tinv\Http\RateLimitExceeded;
+use Tinv\Pilot\PilotService;
+use Tinv\Pilot\PilotValidationException;
 use Tinv\Session\SessionContext;
 use Tinv\Session\SessionService;
 use Tinv\Sales\SalesDocumentService;
@@ -39,7 +41,7 @@ $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 
 if ($method === 'GET' && $path === '/api/v1/health') {
-    Json::ok(['service' => 'telegram-invoice-api', 'gate' => 'G08']);
+    Json::ok(['service' => 'telegram-invoice-api', 'gate' => 'G09']);
 }
 
 try {
@@ -60,6 +62,7 @@ try {
     $officialLogoService = new LogoService($pdo, 'business_official_logo_assets');
     $originGuard = new OriginGuard($config->appOrigin);
     $rateLimiter = new RateLimiter($pdo, $config->sessionPepper);
+    $pilot = new PilotService($pdo, $config->sessionPepper);
     $cookieName = $config->isProductionLike() ? '__Host-tinv_session' : 'tinv_session';
 
     $setCookie = static function (string $token, int $expiresAt) use ($cookieName, $config): void {
@@ -142,6 +145,7 @@ try {
         $oldToken = (string) ($_COOKIE[$cookieName] ?? '');
         $existing = $sessions->authenticate($oldToken);
         if ($existing && $sessions->belongsToTelegramIdentity($existing, (string) $validated->user['id'])) {
+            $pilot->recordBestEffort($existing->userId, $existing->businessId, 'app_open', [], 'daily:' . gmdate('Y-m-d'));
             Json::ok(['userId' => $existing->userId, 'businessId' => $existing->businessId]);
         }
         if ($existing) {
@@ -151,6 +155,7 @@ try {
         $auth = new AuthService($pdo, $validator, $sessions, $config->authMaxAgeSeconds + $config->authFutureSkewSeconds);
         $result = $auth->authenticateTelegram($initData, null, (string) ($_SERVER['HTTP_USER_AGENT'] ?? ''));
         $setCookie($result->sessionToken, $result->absoluteExpiresAt);
+        $pilot->recordBestEffort($result->context->userId, $result->context->businessId, 'app_open', [], 'daily:' . gmdate('Y-m-d'));
         Json::ok(['userId' => $result->context->userId, 'businessId' => $result->context->businessId], 201);
     }
 
@@ -171,6 +176,7 @@ try {
     if ($method === 'PUT' && $path === '/api/v1/settings') {
         $context = $sessionContext();
         $result = $settingsService->update($context->businessId, Json::body());
+        $pilot->recordBestEffort($context->userId, $context->businessId, 'settings_updated');
         $result['logo'] = $logoService->metadata($context->businessId);
         $result['officialLogo'] = $officialLogoService->metadata($context->businessId);
         header('Cache-Control: private, no-store');
@@ -251,7 +257,9 @@ try {
 
     if ($method === 'POST' && $path === '/api/v1/documents') {
         $context = $sessionContext();
-        Json::ok($salesService->createDraft($context->businessId, Json::body()), 201);
+        $document = $salesService->createDraft($context->businessId, Json::body());
+        $pilot->recordBestEffort($context->userId, $context->businessId, 'document_started', ['document_type' => $document['documentType']], 'document:' . $document['id']);
+        Json::ok($document, 201);
     }
 
     if ($method === 'GET' && preg_match('#^/api/v1/documents/([0-9a-f-]{36})/logo$#', $path, $match)) {
@@ -281,7 +289,9 @@ try {
     }
 
     if ($method === 'POST' && preg_match('#^/api/v1/documents/([0-9a-f-]{36})/duplicate$#', $path, $match)) {
-        $context = $sessionContext(); Json::ok($historyService->duplicate($context->businessId, $match[1]), 201);
+        $context = $sessionContext(); $document = $historyService->duplicate($context->businessId, $match[1]);
+        $pilot->recordBestEffort($context->userId, $context->businessId, 'invoice_duplicated', ['document_type' => $document['documentType']], 'duplicate:' . $document['id']);
+        Json::ok($document, 201);
     }
 
     if ($method === 'POST' && preg_match('#^/api/v1/documents/([0-9a-f-]{36})/archive$#', $path, $match)) {
@@ -291,7 +301,9 @@ try {
 
     if ($method === 'POST' && preg_match('#^/api/v1/documents/([0-9a-f-]{36})/finalize$#', $path, $match)) {
         $context = $sessionContext(); $body = Json::body();
-        Json::ok($salesService->finalize($context->businessId, $match[1], ($body['paidConfirmed'] ?? false) === true));
+        $document = $salesService->finalize($context->businessId, $match[1], ($body['paidConfirmed'] ?? false) === true);
+        $pilot->recordBestEffort($context->userId, $context->businessId, 'invoice_completed', ['document_type' => $document['documentType'], 'is_official' => (bool) ($document['isOfficial'] ?? false)], 'finalize:' . $document['id']);
+        Json::ok($document);
     }
 
     if ($method === 'POST' && preg_match('#^/api/v1/documents/([0-9a-f-]{36})/payments$#', $path, $match)) {
@@ -301,12 +313,31 @@ try {
 
     if ($method === 'POST' && preg_match('#^/api/v1/documents/([0-9a-f-]{36})/final-invoice$#', $path, $match)) {
         $context = $sessionContext();
-        Json::ok($salesService->convert($context->businessId, $match[1]), 201);
+        $document = $salesService->convert($context->businessId, $match[1]);
+        $pilot->recordBestEffort($context->userId, $context->businessId, 'proforma_converted', [], 'conversion:' . $document['id']);
+        $pilot->recordBestEffort($context->userId, $context->businessId, 'invoice_completed', ['document_type' => 'invoice', 'is_official' => (bool) ($document['isOfficial'] ?? false)], 'finalize:' . $document['id']);
+        Json::ok($document, 201);
     }
 
     if ($method === 'POST' && preg_match('#^/api/v1/documents/([0-9a-f-]{36})/exports$#', $path, $match)) {
         $context = $sessionContext();
-        Json::ok($salesService->recordExport($context->businessId, $match[1], Json::body()), 201);
+        $export = $salesService->recordExport($context->businessId, $match[1], Json::body());
+        $event = ['png' => 'image_exported', 'pdf' => 'pdf_exported', 'share' => 'share_started'][$export['format']];
+        $pilot->recordBestEffort($context->userId, $context->businessId, $event, ['format' => $export['format']], 'export:' . $export['id']);
+        Json::ok($export, 201);
+    }
+
+    if ($method === 'POST' && $path === '/api/v1/pilot/events') {
+        $context = $sessionContext(); $pilot->recordClient($context->userId, $context->businessId, Json::body()); Json::ok(['recorded' => true], 201);
+    }
+
+    if ($method === 'GET' && $path === '/api/v1/pilot/status') {
+        $context = $sessionContext(); header('Cache-Control: private, no-store');
+        Json::ok(['feedback' => $pilot->feedbackStatus($context->userId, $context->businessId), 'metrics' => $pilot->metrics($context->businessId)]);
+    }
+
+    if ($method === 'POST' && $path === '/api/v1/pilot/feedback') {
+        $context = $sessionContext(); Json::ok($pilot->submitFeedback($context->userId, $context->businessId, Json::body()), 201);
     }
 
     Json::error('not_found', 'Route not found', 404);
@@ -323,6 +354,8 @@ try {
     Json::error('logo_invalid', $exception->reason, 422);
 } catch (SalesValidationException $exception) {
     Json::error('sales_invalid', $exception->reason, $exception->httpStatus);
+} catch (PilotValidationException $exception) {
+    Json::error('pilot_invalid', $exception->reason, $exception->httpStatus);
 } catch (\JsonException) {
     Json::error('invalid_json', 'Invalid JSON request body', 400);
 } catch (\RuntimeException $exception) {
