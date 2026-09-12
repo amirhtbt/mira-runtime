@@ -31,8 +31,9 @@ test('G04 final invoice presents full settlement without installment breakdown',
   await page.getByRole('button',{name:'ذخیره و ادامه برای صدور'}).click(); await page.getByRole('button',{name:/تأیید پرداخت کامل/}).click();
   await expect(page.getByText(/جزئیات اقساط در این فاکتور نمایش داده نمی‌شود/)).toBeVisible();
   await expect(page.getByText(/بیعانه/)).toHaveCount(0);
-  await expect(page.getByRole('button',{name:'دریافت تصویر'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'دریافت تصویر'})).toHaveCount(0);
   await expect(page.getByRole('button',{name:'دریافت PDF'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'اشتراک‌گذاری فایل'})).toBeVisible();
 });
 
 test('G04.1 uses one scroll page, unlimited rows and conditional official identity',async({page})=>{
