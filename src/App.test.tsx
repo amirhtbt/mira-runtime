@@ -35,6 +35,13 @@ describe('G02 app shell', () => {
     expect(container.querySelector('[data-theme="dark"]')).toBeTruthy();
   });
 
+  it('only shows the empty-document card when the account really has no documents', () => {
+    const { rerender } = render(<AppShell telegram={adapter()} runtime={runtime} preview data={{recentInvoices:[],hasDocuments:true,settingsComplete:true}} />);
+    expect(screen.queryByText('هنوز سندی ندارید')).toBeNull();
+    rerender(<AppShell telegram={adapter()} runtime={runtime} preview data={{recentInvoices:[],hasDocuments:false,settingsComplete:true}} />);
+    expect(screen.getByText('هنوز سندی ندارید')).toBeTruthy();
+  });
+
   it('turns the central CTA into a back-button-aware create intent', () => {
     const telegram = adapter(); render(<AppShell telegram={telegram} runtime={runtime} />);
     fireEvent.click(screen.getAllByRole('button', { name: 'ساخت سند جدید' })[0]);
