@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { authenticateWithTelegram, getPilotStatus, submitPilotFeedback, type PilotFeedbackStatus, type PilotMissingCategory, type SessionUser } from './api/client';
+import { authenticateWithTelegram, getBusinessSettings, getPilotStatus, submitPilotFeedback, type PilotFeedbackStatus, type PilotMissingCategory, type SessionUser } from './api/client';
 import { SettingsPage } from './settings/SettingsPage';
 import { SalesDocumentPage } from './sales/SalesDocumentPage';
 import { DocumentsPage } from './sales/DocumentsPage';
@@ -82,13 +82,14 @@ export default function App() {
   const [session, setSession] = useState<SessionUser | null>(null);
   const [state, setState] = useState<ShellState>('loading');
   const [error, setError] = useState('');
+  const [homeData,setHomeData]=useState<HomeData>(emptyHome);
   const [pilotFeedback,setPilotFeedback]=useState<PilotFeedbackStatus>();
   const [attempt, setAttempt] = useState(0);
   const preview = import.meta.env.DEV && new URLSearchParams(window.location.search).has('g02-preview');
   useEffect(() => { document.documentElement.dataset.motion = shouldReduceMotion() ? 'reduced' : 'full'; telegram.ready(); telegram.expand(); const update = () => { const next = telegram.snapshot(); applyRuntimeCssVariables(next); setRuntime(next); }; update(); const unsubscribe = telegram.onRuntimeChange(update); return unsubscribe; }, [telegram]);
-  useEffect(() => { let cancelled = false; async function bootstrap() { if (preview) return; setState('loading'); setError(''); if (!navigator.onLine) { setState('offline'); return; } try { const initData = telegram.getInitData(); if (!initData) throw new Error('این صفحه را از دکمهٔ منوی ربات تلگرام باز کنید.'); const authenticated = await authenticateWithTelegram(initData); if (cancelled) return; setSession(authenticated); setState('ready'); telegram.haptic('success'); void getPilotStatus().then(value=>{if(!cancelled)setPilotFeedback(value.feedback);}).catch(()=>undefined); } catch (reason) { if (cancelled) return; setError(reason instanceof Error ? reason.message : 'خطای ناشناخته در برقراری نشست امن'); setState('error'); } } void bootstrap(); return () => { cancelled = true; }; }, [attempt, preview, telegram]);
+  useEffect(() => { let cancelled = false; async function bootstrap() { if (preview) return; setState('loading'); setError(''); if (!navigator.onLine) { setState('offline'); return; } try { const initData = telegram.getInitData(); if (!initData) throw new Error('این صفحه را از دکمهٔ منوی ربات تلگرام باز کنید.'); const authenticated = await authenticateWithTelegram(initData); const [settingsResult,pilotResult]=await Promise.allSettled([getBusinessSettings(),getPilotStatus()]); if (cancelled) return; if(settingsResult.status==='fulfilled'){const seller=settingsResult.value.settings.seller;const name=seller.displayName||seller.businessName||undefined;setHomeData({recentInvoices:[],businessName:name,settingsComplete:Boolean(name)});}if(pilotResult.status==='fulfilled')setPilotFeedback(pilotResult.value.feedback);setSession(authenticated); setState('ready'); telegram.haptic('success'); } catch (reason) { if (cancelled) return; setError(reason instanceof Error ? reason.message : 'خطای ناشناخته در برقراری نشست امن'); setState('error'); } } void bootstrap(); return () => { cancelled = true; }; }, [attempt, preview, telegram]);
   useEffect(() => { const offline = () => setState('offline'); const online = () => setAttempt(value => value + 1); window.addEventListener('offline', offline); window.addEventListener('online', online); return () => { window.removeEventListener('offline', offline); window.removeEventListener('online', online); }; }, []);
   if (preview) return <AppShell telegram={telegram} preview runtime={{ ...runtime, colorScheme: new URLSearchParams(window.location.search).get('theme') === 'dark' ? 'dark' : 'light' }} />;
   if (state !== 'ready' || !session) return <main className="app-shell state-shell" data-theme={runtime.colorScheme}><StatusView state={state === 'ready' ? 'error' : state} message={error || undefined} onRetry={state === 'loading' ? undefined : () => setAttempt(value => value + 1)} /></main>;
-  return <AppShell telegram={telegram} runtime={runtime} businessId={session.businessId} pilotFeedback={pilotFeedback} onFeedbackSubmitted={()=>setPilotFeedback(current=>current?{...current,eligible:false,submitted:true}:current)} />;
+  return <AppShell telegram={telegram} runtime={runtime} businessId={session.businessId} data={homeData} pilotFeedback={pilotFeedback} onFeedbackSubmitted={()=>setPilotFeedback(current=>current?{...current,eligible:false,submitted:true}:current)} />;
 }
