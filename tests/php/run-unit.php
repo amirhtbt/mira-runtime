@@ -10,6 +10,31 @@ use Tinv\Auth\ValidationException;
 use Tinv\Http\OriginGuard;
 use Tinv\Support\Env;
 use Tinv\Support\Uuid;
+use Tinv\Telegram\WelcomeMessage;
+
+Test::run('private start returns Persian welcome and one inline Mini App button', function (): void {
+    $response = WelcomeMessage::forUpdate([
+        'message' => ['chat' => ['id' => 123, 'type' => 'private'], 'from' => ['id' => 123, 'is_bot' => false], 'text' => '/start'],
+    ], 'https://app.example.test');
+    Test::assert(is_array($response));
+    Test::equals('sendMessage', $response['method']);
+    Test::equals(123, $response['chat_id']);
+    Test::assert(str_contains($response['text'], 'فاکتورساز بهار'));
+    Test::equals('https://app.example.test', $response['reply_markup']['inline_keyboard'][0][0]['web_app']['url']);
+    Test::equals(1, count($response['reply_markup']['inline_keyboard']));
+});
+
+Test::run('welcome ignores unrelated messages, groups, bots and mismatched senders', function (): void {
+    $message = ['chat' => ['id' => 123, 'type' => 'private'], 'from' => ['id' => 123, 'is_bot' => false], 'text' => '/start'];
+    foreach ([
+        ['text' => 'سلام'],
+        ['chat' => ['id' => -123, 'type' => 'group']],
+        ['from' => ['id' => 123, 'is_bot' => true]],
+        ['from' => ['id' => 456, 'is_bot' => false]],
+    ] as $change) {
+        Test::equals(null, WelcomeMessage::forUpdate(['message' => array_replace($message, $change)], 'https://app.example.test'));
+    }
+});
 
 $token = 'unit-test-token-not-a-real-secret';
 $now = 1_800_000_000;
