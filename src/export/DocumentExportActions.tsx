@@ -34,7 +34,7 @@ export function DocumentExportActions({doc}:{doc:SalesDocument}){
   async function pdf(){await document.fonts.ready;const output=new jsPDF({orientation:'landscape',unit:'mm',format:'a4',compress:true});for(let index=0;index<refs.current.length;index++){const node=refs.current[index];if(!node)continue;if(index)output.addPage('a4','landscape');const jpeg=await toJpeg(node,{pixelRatio:2,quality:.94,cacheBust:true,backgroundColor:'#ffffff'});output.addImage(jpeg,'JPEG',0,0,297,210,undefined,'FAST');}return output.output('blob');}
   async function deliverDownload(blob:Blob,format:'pdf'|'png',fileName:string){
     if(canUseTelegramDownload()){
-      try{const delivery=await stageExportFile({documentId:doc.id,purpose:'download',format,blob,fileName,title:documentTitle});await requestTelegramDownload(delivery.url,delivery.fileName);return 'telegram' as const;}catch(error){if(isDeliveryCancellation(error))throw error;void recordPilotEvent('export_failed',{format,stage:'delivery'}).catch(()=>undefined);}
+      try{const delivery=await stageExportFile({documentId:doc.id,purpose:'download',format,blob,fileName,title:documentTitle});await requestTelegramDownload(delivery.url,delivery.fileName);return 'telegram' as const;}catch(error){if(isDeliveryCancellation(error))throw error;void recordPilotEvent('export_failed',{format,stage:'download'}).catch(()=>undefined);}
     }
     browserDownload(blob,fileName);return 'browser' as const;
   }
