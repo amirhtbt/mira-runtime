@@ -34,5 +34,7 @@ describe('G09 Bahar public runtime contract', () => {
     expect(api).not.toMatch(/recordDocumentExport[^\n]*'png'/);
     expect(actions).toContain('دریافت PDF');
     expect(actions).toContain("text:'سند ساخته شده با فاکتورساز بهار'");
+    expect(actions).toContain('await deliverDownload(blob,file.name)');
+    expect(actions).toContain('فایل‌ها/Downloads');
   });
 });

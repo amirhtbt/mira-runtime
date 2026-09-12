@@ -41,8 +41,17 @@ export function DocumentExportActions({doc}:{doc:SalesDocument}){
   }
   async function browserShareOrDownload(blob:Blob){
     const file=new File([blob],`${filename}.pdf`,{type:'application/pdf'});
-    if(isMobileDevice() && navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){await navigator.share({title:documentTitle,text:'سند ساخته شده با فاکتورساز بهار',files:[file]});await recordDocumentExport(doc.id,{format:'share',byteSize:blob.size});setMessage('فایل با پنجره اشتراک‌گذاری دستگاه ارسال شد.');return;}
-    browserDownload(blob,file.name);await recordDocumentExport(doc.id,{format:'pdf',byteSize:blob.size});setMessage('اشتراک‌گذاری مستقیم در این نسخه در دسترس نیست؛ دانلود PDF توسط مرورگر شروع شد تا بتوانید فایل را دستی پیوست کنید.');
+    if(isMobileDevice() && navigator.share){
+      let canShareFile=false;
+      try{canShareFile=!navigator.canShare||navigator.canShare({files:[file]});}catch{canShareFile=false;}
+      if(canShareFile){
+        try{await navigator.share({title:documentTitle,text:'سند ساخته شده با فاکتورساز بهار',files:[file]});await recordDocumentExport(doc.id,{format:'share',byteSize:blob.size});setMessage('فایل با پنجره اشتراک‌گذاری دستگاه ارسال شد.');return;}
+        catch(error){if(error instanceof DOMException && error.name==='AbortError')throw error;/* WebView may reject file shares despite advertising support. */}
+      }
+    }
+    const channel=await deliverDownload(blob,file.name);
+    await recordDocumentExport(doc.id,{format:'pdf',byteSize:blob.size});
+    setMessage(channel==='telegram'?'تلگرام پنجره ذخیره PDF را باز کرد. بعد از ذخیره، فایل را از «فایل‌ها/Downloads» با واتساپ، بله یا هر برنامهٔ دیگری اشتراک‌گذاری کنید.':'اشتراک‌گذاری مستقیم فایل در این دستگاه در دسترس نیست. PDF دانلود شد؛ آن را از «فایل‌ها/Downloads» در پیام‌رسان دلخواه پیوست کنید.');
   }
   async function run(action:'pdf'|'share'){setBusy(true);setMessage('');try{
     const blob=prepared.current;if(!blob)throw new Error('pdf_not_ready');
