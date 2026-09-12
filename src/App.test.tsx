@@ -27,12 +27,24 @@ describe('G02 app shell', () => {
   });
 
   it('isolates mixed invoice identifiers and amounts in returning-user data', () => {
-    const data: HomeData = { settingsComplete: true, businessName: 'فروشگاه بهار', recentInvoices: [{ id: 'INV-A12-۱۴۰۵', customer: 'شرکت Box4U', amount: '۱۲٬۴۵۰٬۰۰۰ تومان', date: '18 شهریور 1405', status: 'draft' }] };
+    const data: HomeData = { settingsComplete: true, businessName: 'فروشگاه بهار', recentInvoices: [{ id: 'INV-A12-۱۴۰۵', documentId: 'document-uuid', documentType: 'proforma', customer: 'شرکت Box4U', amount: '۱۲٬۴۵۰٬۰۰۰ تومان', date: '18 شهریور 1405', status: 'draft' }] };
     const { container } = render(<AppShell telegram={adapter()} runtime={{ ...runtime, colorScheme: 'dark' }} data={data} />);
     expect(screen.getByText('INV-A۱۲-۱۴۰۵')).toBeTruthy();
     expect(screen.getByText('۱۸ شهریور ۱۴۰۵')).toBeTruthy();
     expect(screen.getByText('۱۲٬۴۵۰٬۰۰۰ تومان').tagName).toBe('BDI');
     expect(container.querySelector('[data-theme="dark"]')).toBeTruthy();
+  });
+
+  it('opens a home document by its internal ID and returns to Home with Telegram Back', () => {
+    const telegram = adapter();
+    const data: HomeData = {settingsComplete:true,recentInvoices:[{id:'PF-0007',documentId:'doc-uuid-7',documentType:'proforma',customer:'مشتری نمونه',amount:'۱۰۰ ریال',date:'۱۴۰۵/۶/۱',status:'final'}]};
+    render(<AppShell telegram={telegram} runtime={runtime} preview data={data}/>);
+    fireEvent.click(screen.getByRole('button',{name:'مشاهده سند PF-0007 برای مشتری نمونه'}));
+    expect(screen.getByLabelText('نام مشتری یا شرکت')).toBeTruthy();
+    const handler=vi.mocked(telegram.setBackHandler).mock.calls.at(-1)?.[0];
+    expect(handler).toBeTypeOf('function');
+    act(()=>handler?.());
+    expect(screen.getByRole('button',{name:'مشاهده سند PF-0007 برای مشتری نمونه'})).toBeTruthy();
   });
 
   it('only shows the empty-document card when the account really has no documents', () => {
