@@ -96,3 +96,5 @@ Test::run('G08 rate limiter is atomic, resettable and stores no raw scope', func
     Test::assert(is_string($stored) && strlen($stored) === 64 && $stored !== $scope);
     $limiter->consume($scope, 'auth_test', 2, 60, $now + 61);
 });
+
+require __DIR__ . '/ExportDeliveryChecks.php';
