@@ -1,5 +1,5 @@
 export type ExportDeliveryPurpose = 'download' | 'share';
-export type ExportDeliveryFormat = 'pdf' | 'png';
+export type ExportDeliveryFormat = 'pdf';
 
 export interface ExportDelivery {
   url: string;
