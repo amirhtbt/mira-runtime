@@ -104,7 +104,7 @@ try {
     $sales = new SalesDocumentService($pdo, new SettingsRepository($pdo));
     $sales->get($context->businessId, $documentId, false);
     $staged = $files->store($context->businessId, $documentId, $bytes, $expectedMime, $fileName);
-    $url = $config->appOrigin . '/export-bridge.php?token=' . rawurlencode($staged['token']);
+    $url = $config->appOrigin . '/export-file/' . rawurlencode($staged['token']) . '/' . rawurlencode($staged['fileName']);
     $response = [
         'url' => $url,
         'fileName' => $staged['fileName'],
