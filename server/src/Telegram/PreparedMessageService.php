@@ -20,7 +20,7 @@ final readonly class PreparedMessageService
         }
         $safeTitle = trim($title);
         if ($safeTitle === '') {
-            $safeTitle = 'سند فروش میرا';
+            $safeTitle = 'سند فاکتورساز بهار';
         }
         $safeTitle = mb_substr($safeTitle, 0, 100, 'UTF-8');
 
@@ -32,7 +32,7 @@ final readonly class PreparedMessageService
                 'title' => $safeTitle,
                 'document_url' => $documentUrl,
                 'mime_type' => 'application/pdf',
-                'caption' => 'سند فروش ساخته‌شده با میرا',
+                'caption' => 'سند ساخته شده با فاکتورساز بهار',
             ],
             'allow_user_chats' => true,
             'allow_bot_chats' => true,

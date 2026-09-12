@@ -37,10 +37,9 @@ try {
         if ($file === null) {
             Json::error('temporary_export_not_found', 'File is unavailable or expired', 404);
         }
-        $asciiName = $file['mimeType'] === 'application/pdf' ? 'mira-document.pdf' : 'mira-document.png';
-        header('Content-Type: ' . $file['mimeType']);
+        header('Content-Type: application/pdf');
         header('Content-Length: ' . (string) $file['byteSize']);
-        header('Content-Disposition: attachment; filename="' . $asciiName . '"; filename*=UTF-8\'\'' . rawurlencode($file['fileName']));
+        header('Content-Disposition: attachment; filename="bahar-document.pdf"; filename*=UTF-8\'\'' . rawurlencode($file['fileName']));
         echo $file['bytes'];
         exit;
     }
@@ -72,12 +71,9 @@ try {
     $documentId = trim((string) ($_POST['documentId'] ?? ''));
     $purpose = (string) ($_POST['purpose'] ?? 'download');
     $format = (string) ($_POST['format'] ?? '');
-    $title = trim((string) ($_POST['title'] ?? 'سند فروش میرا'));
-    if (!preg_match('/^[0-9a-f-]{36}$/D', $documentId) || !in_array($purpose, ['download', 'share'], true) || !in_array($format, ['pdf', 'png'], true)) {
+    $title = trim((string) ($_POST['title'] ?? 'سند فاکتورساز بهار'));
+    if (!preg_match('/^[0-9a-f-]{36}$/D', $documentId) || !in_array($purpose, ['download', 'share'], true) || $format !== 'pdf') {
         Json::error('temporary_export_request_invalid', 'Export request is invalid', 422);
-    }
-    if ($purpose === 'share' && $format !== 'pdf') {
-        Json::error('share_format_invalid', 'Only PDF can be shared', 422);
     }
     if (array_keys($_FILES) !== ['file']) {
         Json::error('temporary_export_file_required', 'One export file is required', 422);
@@ -94,9 +90,9 @@ try {
     if ($bytes === false) {
         Json::error('temporary_export_upload_failed', 'Export upload failed', 422);
     }
-    $expectedMime = $format === 'pdf' ? 'application/pdf' : 'image/png';
+    $expectedMime = 'application/pdf';
     $claimedMime = (string) ($upload['type'] ?? '');
-    $fileName = (string) ($upload['name'] ?? ('mira-document.' . $format));
+    $fileName = (string) ($upload['name'] ?? 'bahar-document.pdf');
     if ($claimedMime !== $expectedMime) {
         Json::error('temporary_export_type_invalid', 'Export type is invalid', 422);
     }

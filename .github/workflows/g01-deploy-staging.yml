@@ -103,6 +103,18 @@ jobs:
           STAGING_DB_PORT: 3306
         run: bash scripts/deploy-ftps.sh
 
+      - name: Verify Staging expired-export sweep endpoint
+        env:
+          STAGING_ORIGIN: ${{ secrets.STAGING_ORIGIN }}
+          STAGING_SESSION_PEPPER: ${{ secrets.STAGING_SESSION_PEPPER }}
+        run: |
+          token="$(printf '%s' 'g09-export-retention-sweep' | openssl dgst -sha256 -hmac "$STAGING_SESSION_PEPPER" | awk '{print $2}')"
+          response="$(curl --fail --silent --show-error \
+            -X POST \
+            -H "X-Tinv-Cleanup-Token: $token" \
+            "${STAGING_ORIGIN%/}/export-retention-sweep.php")"
+          printf '%s' "$response" | grep -F '"ok":true' >/dev/null
+
       - name: Install browser for post-deploy smoke
         run: npx playwright install --with-deps chromium
 

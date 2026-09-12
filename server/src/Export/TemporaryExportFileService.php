@@ -9,8 +9,11 @@ use RuntimeException;
 final readonly class TemporaryExportFileService
 {
     public const MAX_BYTES = 8_388_608;
-    public const DOWNLOAD_TTL_SECONDS = 900;
-    public const SHARE_TTL_CAP_SECONDS = 86_400;
+    // Download payloads expire after 30 minutes; prepared-share payloads may
+    // extend to one hour. The hourly sweeper then keeps physical retention
+    // within the owner's two-hour ceiling while document data stays durable.
+    public const DOWNLOAD_TTL_SECONDS = 1_800;
+    public const SHARE_TTL_CAP_SECONDS = 3_600;
 
     public function __construct(private PDO $pdo) {}
 
@@ -27,10 +30,7 @@ final readonly class TemporaryExportFileService
 
         $finfo = new \finfo(FILEINFO_MIME_TYPE);
         $detectedMimeType = (string) $finfo->buffer($bytes);
-        $allowed = [
-            'application/pdf' => 'pdf',
-            'image/png' => 'png',
-        ];
+        $allowed = ['application/pdf' => 'pdf'];
         if (!isset($allowed[$detectedMimeType]) || $claimedMimeType !== $detectedMimeType) {
             throw new RuntimeException('temporary_export_type_invalid');
         }
@@ -39,7 +39,7 @@ final readonly class TemporaryExportFileService
         $safeName = mb_substr($safeName, 0, 160, 'UTF-8');
         $extension = $allowed[$detectedMimeType];
         if ($safeName === '' || !str_ends_with(strtolower($safeName), '.' . $extension)) {
-            $safeName = 'mira-export.' . $extension;
+            $safeName = 'bahar-export.pdf';
         }
 
         $this->cleanupExpired();
@@ -101,8 +101,25 @@ final readonly class TemporaryExportFileService
             throw new RuntimeException('temporary_export_token_invalid');
         }
         $now = time();
-        $expiresAt = max($now + 60, min($requestedEpoch, $now + self::SHARE_TTL_CAP_SECONDS));
-        $statement = $this->pdo->prepare('UPDATE temporary_export_files SET expires_at=? WHERE token_hash=?');
+        // Cap against creation time, not the time of an extension request: a
+        // repeated request must never prolong one physical PDF indefinitely.
+        $lookup = $this->pdo->prepare('SELECT created_at FROM temporary_export_files WHERE token_hash=? AND expires_at>UTC_TIMESTAMP() LIMIT 1');
+        $lookup->bindValue(1, hash('sha256', $token, true), PDO::PARAM_LOB);
+        $lookup->execute();
+        $createdAt = $lookup->fetchColumn();
+        if (!is_string($createdAt)) {
+            throw new RuntimeException('temporary_export_not_found');
+        }
+        $createdEpoch = strtotime($createdAt . ' UTC');
+        if ($createdEpoch === false) {
+            throw new RuntimeException('temporary_export_timestamp_invalid');
+        }
+        $latestExpiry = $createdEpoch + self::SHARE_TTL_CAP_SECONDS;
+        if ($latestExpiry <= $now + 60) {
+            throw new RuntimeException('temporary_export_expiring');
+        }
+        $expiresAt = max($now + 60, min($requestedEpoch, $latestExpiry));
+        $statement = $this->pdo->prepare('UPDATE temporary_export_files SET expires_at=? WHERE token_hash=? AND expires_at>UTC_TIMESTAMP()');
         $statement->bindValue(1, gmdate('Y-m-d H:i:s', $expiresAt));
         $statement->bindValue(2, hash('sha256', $token, true), PDO::PARAM_LOB);
         $statement->execute();
@@ -122,8 +139,8 @@ final readonly class TemporaryExportFileService
         $statement->execute();
     }
 
-    private function cleanupExpired(): void
+    public function cleanupExpired(): int
     {
-        $this->pdo->exec('DELETE FROM temporary_export_files WHERE expires_at<=UTC_TIMESTAMP()');
+        return $this->pdo->exec('DELETE FROM temporary_export_files WHERE expires_at<=UTC_TIMESTAMP()');
     }
 }

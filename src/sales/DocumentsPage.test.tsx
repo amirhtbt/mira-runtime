@@ -16,7 +16,8 @@ describe('G04 document archive',()=>{
     const open=vi.fn();render(<DocumentsPage onOpen={open}/>);
     await waitFor(()=>expect(screen.getByText('مشتری پیش‌فاکتور')).toBeTruthy());
     expect(screen.getByText('مشتری فاکتور')).toBeTruthy(); expect(screen.getByText(/مانده ۷٬۰۰۰٬۰۰۰/)).toBeTruthy();
-    fireEvent.click(screen.getByText('PF-00001')); expect(open).toHaveBeenCalledWith(expect.objectContaining({id:'p1',documentType:'proforma'}));
+    fireEvent.click(screen.getByText('PF-۰۰۰۰۱')); expect(open).toHaveBeenCalledWith(expect.objectContaining({id:'p1',documentType:'proforma'}));
+    expect(screen.getByText('INV-۰۰۰۰۱')).toBeTruthy();
   });
 
   it('groups by customer and exposes server-backed filters and reuse actions',async()=>{

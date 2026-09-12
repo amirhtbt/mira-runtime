@@ -18,6 +18,7 @@ function adapter() {
 describe('G02 app shell', () => {
   it('offers the real empty home and keyboard-accessible navigation', () => {
     render(<AppShell telegram={adapter()} runtime={runtime} />);
+    expect(screen.getByText('فاکتورساز بهار')).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'اولین سند فروشتان را بسازید' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /فاکتورها/ }));
     expect(screen.getByRole('heading', { name: 'اسناد مشتریان' })).toBeTruthy();
@@ -26,9 +27,10 @@ describe('G02 app shell', () => {
   });
 
   it('isolates mixed invoice identifiers and amounts in returning-user data', () => {
-    const data: HomeData = { settingsComplete: true, businessName: 'فروشگاه میرا', recentInvoices: [{ id: 'INV-A12-۱۴۰۵', customer: 'شرکت Box4U', amount: '۱۲٬۴۵۰٬۰۰۰ تومان', date: '۱۸ شهریور ۱۴۰۵', status: 'draft' }] };
+    const data: HomeData = { settingsComplete: true, businessName: 'فروشگاه بهار', recentInvoices: [{ id: 'INV-A12-۱۴۰۵', customer: 'شرکت Box4U', amount: '۱۲٬۴۵۰٬۰۰۰ تومان', date: '18 شهریور 1405', status: 'draft' }] };
     const { container } = render(<AppShell telegram={adapter()} runtime={{ ...runtime, colorScheme: 'dark' }} data={data} />);
-    expect(screen.getByText('INV-A12-۱۴۰۵').getAttribute('dir')).toBe('ltr');
+    expect(screen.getByText('INV-A۱۲-۱۴۰۵')).toBeTruthy();
+    expect(screen.getByText('۱۸ شهریور ۱۴۰۵')).toBeTruthy();
     expect(screen.getByText('۱۲٬۴۵۰٬۰۰۰ تومان').tagName).toBe('BDI');
     expect(container.querySelector('[data-theme="dark"]')).toBeTruthy();
   });
@@ -68,11 +70,12 @@ describe('G02 app shell', () => {
     expect(retry).toHaveBeenCalledOnce();
   });
 
-  it('shows pilot feedback only after server-side eligibility', () => {
+  it('shows pilot feedback only after server-side eligibility without trial wording', () => {
     const {rerender}=render(<AppShell telegram={adapter()} runtime={runtime} pilotFeedback={{eligible:false,submitted:false,issuedDocuments:1,activeDays:1}} onFeedbackSubmitted={vi.fn()}/>);
-    expect(screen.queryByRole('heading',{name:'میرا چقدر برایتان کاربردی بود؟'})).toBeNull();
+    expect(screen.queryByRole('heading',{name:'فاکتورساز بهار چقدر برایتان کاربردی بود؟'})).toBeNull();
     rerender(<AppShell telegram={adapter()} runtime={runtime} pilotFeedback={{eligible:true,submitted:false,issuedDocuments:3,activeDays:1}} onFeedbackSubmitted={vi.fn()}/>);
-    expect(screen.getByRole('heading',{name:'میرا چقدر برایتان کاربردی بود؟'})).toBeTruthy();
+    expect(screen.getByRole('heading',{name:'فاکتورساز بهار چقدر برایتان کاربردی بود؟'})).toBeTruthy();
+    expect(screen.queryByText('نسخه آزمایشی رایگان')).toBeNull();
     expect(screen.getByPlaceholderText(/اطلاعات مشتری/)).toBeTruthy();
   });
 });

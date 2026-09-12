@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 use Tinv\Export\TemporaryExportFileService;
 
-Test::run('G09 temporary export token is unguessable, type-checked and expiring', function () use ($pdo): void {
+Test::run('G09 temporary PDF is unguessable, PDF-only and physically expiring', function () use ($pdo): void {
     $businessId = (string) $pdo->query('SELECT id FROM businesses ORDER BY created_at LIMIT 1')->fetchColumn();
     Test::assert($businessId !== '');
     $customerId = 'f1000000-0000-4000-8000-000000000001';
@@ -16,12 +16,28 @@ Test::run('G09 temporary export token is unguessable, type-checked and expiring'
     $pdf = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n";
     $stored = $service->store($businessId,$documentId,$pdf,'application/pdf','invoice-test.pdf');
     Test::assert((bool) preg_match('/^[a-f0-9]{64}$/', $stored['token']));
+    Test::assert($stored['expiresAt'] > time());
+    Test::assert($stored['expiresAt'] <= time() + TemporaryExportFileService::DOWNLOAD_TTL_SECONDS + 2);
     $row = $service->fetch($stored['token']);
     Test::assert($row !== null);
     Test::equals('application/pdf',$row['mimeType']);
     Test::equals($pdf,$row['bytes']);
     Test::equals(null,$service->fetch(str_repeat('0',64)));
     Test::throws(fn() => $service->store($businessId,$documentId,$pdf,'image/png','wrong.png'), RuntimeException::class);
+
+    $extended = $service->extendExpiry($stored['token'], time() + 86_400);
+    Test::assert($extended <= time() + TemporaryExportFileService::SHARE_TTL_CAP_SECONDS + 2);
+    $pdo->prepare('UPDATE temporary_export_files SET created_at=DATE_SUB(UTC_TIMESTAMP(), INTERVAL 50 MINUTE) WHERE token_hash=?')->execute([hash('sha256',$stored['token'],true)]);
+    $secondExtension = $service->extendExpiry($stored['token'], time() + 86_400);
+    Test::assert($secondExtension <= time() + 10 * 60 + 2);
+
+    $expired = $service->store($businessId,$documentId,$pdf,'application/pdf','expired-test.pdf');
+    $expiredHash = hash('sha256',$expired['token'],true);
+    $pdo->prepare('UPDATE temporary_export_files SET expires_at=DATE_SUB(UTC_TIMESTAMP(), INTERVAL 1 SECOND) WHERE token_hash=?')->execute([$expiredHash]);
+    Test::assert($service->cleanupExpired() >= 1);
+    $count = $pdo->prepare('SELECT COUNT(*) FROM temporary_export_files WHERE token_hash=?');
+    $count->execute([$expiredHash]);
+    Test::equals(0,(int) $count->fetchColumn());
 
     $pdo->prepare('UPDATE temporary_export_files SET expires_at=DATE_SUB(UTC_TIMESTAMP(), INTERVAL 1 SECOND) WHERE token_hash=?')->execute([hash('sha256',$stored['token'],true)]);
     Test::equals(null,$service->fetch($stored['token']));
