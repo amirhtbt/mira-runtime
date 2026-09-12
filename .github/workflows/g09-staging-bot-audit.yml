@@ -1,0 +1,40 @@
+name: G09 Staging Bot Webhook Audit
+
+on:
+  push:
+    branches: ['feature/bot-welcome']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    env:
+      BOT_TOKEN: ${{ secrets.STAGING_TELEGRAM_BOT_TOKEN }}
+      STAGING_ORIGIN: ${{ secrets.STAGING_ORIGIN }}
+    steps:
+      - name: Read bot identity and webhook without changing Telegram
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request
+          token = os.environ.get('BOT_TOKEN', '')
+          origin = os.environ.get('STAGING_ORIGIN', '').rstrip('/')
+          if not token or not origin.startswith('https://'):
+              raise SystemExit('Staging bot/origin secrets are not configured')
+          def read(method):
+              request = urllib.request.Request(f'https://api.telegram.org/bot{token}/{method}', method='POST')
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  data = json.load(response)
+              if data.get('ok') is not True:
+                  raise SystemExit(f'{method} failed')
+              return data['result']
+          bot, info = read('getMe'), read('getWebhookInfo')
+          url = info.get('url', '')
+          print('bot_username=' + str(bot.get('username', '')))
+          print('webhook_state=' + ('empty' if not url else 'expected' if url == origin + '/bot-webhook.php' else 'other'))
+          print('webhook_url=' + (url or '(not set)'))
+          print('pending_update_count=' + str(info.get('pending_update_count', 0)))
+          print('read_only_audit=PASS')
+          PY

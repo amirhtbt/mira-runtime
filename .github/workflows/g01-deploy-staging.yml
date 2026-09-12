@@ -122,3 +122,53 @@ jobs:
         env:
           PLAYWRIGHT_BASE_URL: ${{ secrets.STAGING_ORIGIN }}
         run: npx playwright test tests/e2e/g09-smoke.e2e.spec.ts
+
+      - name: Activate and verify isolated staging bot welcome webhook
+        env:
+          STAGING_ORIGIN: ${{ secrets.STAGING_ORIGIN }}
+          STAGING_TELEGRAM_BOT_TOKEN: ${{ secrets.STAGING_TELEGRAM_BOT_TOKEN }}
+          STAGING_SESSION_PEPPER: ${{ secrets.STAGING_SESSION_PEPPER }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, hmac, json, os, urllib.error, urllib.parse, urllib.request
+
+          origin = os.environ['STAGING_ORIGIN'].rstrip('/')
+          token = os.environ['STAGING_TELEGRAM_BOT_TOKEN']
+          pepper = os.environ['STAGING_SESSION_PEPPER']
+          if origin != 'https://invoice-staging.box4u.co' or not token or not pepper:
+              raise SystemExit('Staging bot settings do not match the approved host')
+          url = origin + '/bot-webhook.php'
+          def bot_api(method, payload=None):
+              endpoint = 'https://api.telegram.org/bot' + token + '/' + method
+              body = urllib.parse.urlencode(payload or {}).encode()
+              try:
+                  with urllib.request.urlopen(urllib.request.Request(endpoint, data=body), timeout=30) as response:
+                      data = json.load(response)
+              except (urllib.error.HTTPError, urllib.error.URLError):
+                  raise SystemExit('Telegram ' + method + ' request failed') from None
+              if data.get('ok') is not True:
+                  raise SystemExit('Telegram ' + method + ' returned an error')
+              return data['result']
+
+          current = bot_api('getWebhookInfo').get('url', '')
+          if current not in ('', url):
+              raise SystemExit('An unrelated staging webhook is already configured; refusing to overwrite it')
+          try:
+              request = urllib.request.Request(url, data=b'{}', method='POST')
+              urllib.request.urlopen(request, timeout=20)
+              raise SystemExit('Webhook accepted an unauthenticated request')
+          except urllib.error.HTTPError as error:
+              if error.code != 403:
+                  raise SystemExit('Webhook did not reject unauthenticated requests with 403') from None
+          secret = hmac.new(pepper.encode(), b'tinv-welcome-webhook-v1', hashlib.sha256).hexdigest()
+          bot_api('setWebhook', {
+              'url': url,
+              'secret_token': secret,
+              'allowed_updates': json.dumps(['message']),
+              'drop_pending_updates': 'false',
+              'max_connections': '5',
+          })
+          if bot_api('getWebhookInfo').get('url') != url:
+              raise SystemExit('Staging webhook URL was not verified')
+          print('Staging bot welcome webhook active on approved host; authenticated webhook configured')
+          PY
