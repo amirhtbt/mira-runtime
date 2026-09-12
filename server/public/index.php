@@ -6,6 +6,7 @@ $sourceBootstrap = __DIR__ . '/../bootstrap.php';
 require is_file($runtimeBootstrap) ? $runtimeBootstrap : $sourceBootstrap;
 
 use Tinv\Auth\AuthService;
+use Tinv\Admin\OwnerAnalytics;
 use Tinv\Auth\InitDataValidator;
 use Tinv\Auth\ReplayDetected;
 use Tinv\Auth\ValidationException;
@@ -28,6 +29,7 @@ use Tinv\Settings\LogoValidationException;
 use Tinv\Settings\SettingsRepository;
 use Tinv\Settings\SettingsService;
 use Tinv\Settings\SettingsValidationException;
+use Tinv\Support\Env;
 
 $incomingRequestId = (string) ($_SERVER['HTTP_X_REQUEST_ID'] ?? '');
 $requestId = preg_match('/^[A-Za-z0-9._-]{8,64}$/', $incomingRequestId) ? $incomingRequestId : bin2hex(random_bytes(16));
@@ -96,6 +98,16 @@ try {
     if ($method === 'GET' && $path === '/api/v1/session') {
         $context = $sessionContext();
         Json::ok(['userId' => $context->userId, 'businessId' => $context->businessId]);
+    }
+
+    if ($method === 'GET' && $path === '/api/v1/owner/summary') {
+        $context = $sessionContext();
+        header('Cache-Control: private, no-store');
+        $owner = new OwnerAnalytics($pdo);
+        if (!$owner->allowed($context->userId, Env::string('OWNER_TELEGRAM_USER_ID', ''))) {
+            Json::error('not_found', 'Route not found', 404);
+        }
+        Json::ok($owner->summary());
     }
 
     if ($method === 'GET' && $path === '/api/v1/settings') {

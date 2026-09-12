@@ -6,6 +6,19 @@ export interface SessionUser {
   businessId: string;
 }
 
+export interface OwnerSummary {
+  users: { registered: number; active30: number };
+  documents: { invoice: { count: number; totalRial: string }; proforma: { count: number; totalRial: string } };
+  customers: number;
+  convertedProformas: number;
+  recordedProformaPaymentsRial: string;
+  note: string;
+}
+
+export async function getOwnerSummary(): Promise<OwnerSummary> {
+  return requireData(await request<OwnerSummary>('/api/v1/owner/summary'), 'owner_summary_failed');
+}
+
 export interface ApiEnvelope<T> {
   ok: boolean;
   data?: T;

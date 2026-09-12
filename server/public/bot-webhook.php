@@ -7,6 +7,7 @@ require is_file($runtimeBootstrap) ? $runtimeBootstrap : $sourceBootstrap;
 
 use Tinv\Support\Env;
 use Tinv\Telegram\WelcomeMessage;
+use Tinv\Telegram\OwnerLaunchMessage;
 
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
@@ -42,7 +43,8 @@ if (!is_array($update)) {
     exit;
 }
 
-$response = WelcomeMessage::forUpdate($update, $origin);
+$response = WelcomeMessage::forUpdate($update, $origin)
+    ?? OwnerLaunchMessage::forUpdate($update, $origin, Env::string('OWNER_TELEGRAM_USER_ID', ''));
 if ($response === null) {
     http_response_code(204);
     exit;
