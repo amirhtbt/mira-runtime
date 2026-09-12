@@ -9,6 +9,10 @@ RewriteEngine On
 # these same-directory files internally.
 RewriteRule ^tinv-runtime(?:$|/|\.|-) - [F,L]
 
+# Short-lived export files are served through an unguessable token while keeping
+# a real .pdf/.png suffix for Telegram's native download/share fetchers.
+RewriteRule ^export-file/([a-f0-9]{64})/[^/]+\.(?:pdf|png)$ export-bridge.php?token=$1 [L,QSA,NC]
+
 # Keep the V1 API same-origin and route every API path through PHP.
 RewriteRule ^api(?:/|$) index.php [L,QSA]
 
