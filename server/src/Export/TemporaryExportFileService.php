@@ -9,8 +9,10 @@ use RuntimeException;
 final readonly class TemporaryExportFileService
 {
     public const MAX_BYTES = 8_388_608;
-    public const DOWNLOAD_TTL_SECONDS = 900;
-    public const SHARE_TTL_CAP_SECONDS = 86_400;
+    // Files exist only as a delivery bridge. One-hour expiry plus the hourly
+    // sweeper keeps physical retention below the owner's two-hour ceiling.
+    public const DOWNLOAD_TTL_SECONDS = 3_600;
+    public const SHARE_TTL_CAP_SECONDS = 3_600;
 
     public function __construct(private PDO $pdo) {}
 
@@ -27,10 +29,7 @@ final readonly class TemporaryExportFileService
 
         $finfo = new \finfo(FILEINFO_MIME_TYPE);
         $detectedMimeType = (string) $finfo->buffer($bytes);
-        $allowed = [
-            'application/pdf' => 'pdf',
-            'image/png' => 'png',
-        ];
+        $allowed = ['application/pdf' => 'pdf'];
         if (!isset($allowed[$detectedMimeType]) || $claimedMimeType !== $detectedMimeType) {
             throw new RuntimeException('temporary_export_type_invalid');
         }
@@ -39,7 +38,7 @@ final readonly class TemporaryExportFileService
         $safeName = mb_substr($safeName, 0, 160, 'UTF-8');
         $extension = $allowed[$detectedMimeType];
         if ($safeName === '' || !str_ends_with(strtolower($safeName), '.' . $extension)) {
-            $safeName = 'mira-export.' . $extension;
+            $safeName = 'bahar-export.pdf';
         }
 
         $this->cleanupExpired();
@@ -122,8 +121,8 @@ final readonly class TemporaryExportFileService
         $statement->execute();
     }
 
-    private function cleanupExpired(): void
+    public function cleanupExpired(): int
     {
-        $this->pdo->exec('DELETE FROM temporary_export_files WHERE expires_at<=UTC_TIMESTAMP()');
+        return $this->pdo->exec('DELETE FROM temporary_export_files WHERE expires_at<=UTC_TIMESTAMP()');
     }
 }
