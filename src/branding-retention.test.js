@@ -15,7 +15,7 @@ const trialPhrase = ['نسخه', 'آزمایشی', 'رایگان'].join(' ');
 describe('G09 Bahar public runtime contract', () => {
   it('contains no legacy Persian brand or trial wording in user-facing runtime sources', () => {
     const roots = ['src', 'server/public', 'server/src/Telegram'];
-    const files = roots.flatMap(filesUnder).filter(path => !path.endsWith('branding-retention.test.js'));
+    const files = roots.flatMap(filesUnder).filter(path => !/\.(?:test|spec)\.[jt]sx?$/.test(path));
     for (const path of files) {
       const content = readFileSync(path, 'utf8');
       expect(content, path).not.toContain(legacyBrand);
