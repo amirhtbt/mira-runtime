@@ -6,6 +6,7 @@ require __DIR__ . '/Test.php';
 require __DIR__ . '/TelegramFixture.php';
 
 use Tinv\Auth\AuthService;
+use Tinv\Admin\OwnerAnalytics;
 use Tinv\Auth\InitDataValidator;
 use Tinv\Config;
 use Tinv\Database;
@@ -23,6 +24,18 @@ $one = $auth->authenticateTelegram(TelegramFixture::user('909000001', $now - 2, 
 $two = $auth->authenticateTelegram(TelegramFixture::user('909000002', $now - 2, $config->telegramBotToken, 'Pilot Two'), $now);
 $pilot = new PilotService($pdo, $config->sessionPepper);
 $sales = new SalesDocumentService($pdo, new SettingsRepository($pdo));
+
+Test::run('owner analytics fails closed and never grants another Telegram identity', function () use ($pdo, $one, $two): void {
+    $owner = new OwnerAnalytics($pdo);
+    Test::assert(!$owner->allowed($one->context->userId, ''));
+    Test::assert(!$owner->allowed($one->context->userId, 'not-an-id'));
+    Test::assert($owner->allowed($one->context->userId, '909000001'));
+    Test::assert(!$owner->allowed($two->context->userId, '909000001'));
+    $summary = $owner->summary();
+    Test::assert($summary['users']['registered'] >= 2);
+    Test::assert(is_string($summary['documents']['invoice']['totalRial']));
+    Test::assert(!array_key_exists('phone', $summary));
+});
 
 Test::run('G09 event schema rejects content and arbitrary telemetry', function () use ($pilot, $one, $now, $pdo): void {
     $pilot->recordClient($one->context->userId, $one->context->businessId, ['event' => 'app_open', 'properties' => []], $now - 86400);

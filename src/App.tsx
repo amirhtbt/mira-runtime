@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { authenticateWithTelegram, getBusinessSettings, getPilotStatus, listSalesDocuments, submitPilotFeedback, type PilotFeedbackStatus, type PilotMissingCategory, type SessionUser } from './api/client';
+import { OwnerDashboard } from './admin/OwnerDashboard';
 import { SettingsPage } from './settings/SettingsPage';
 import { SalesDocumentPage } from './sales/SalesDocumentPage';
 import { DocumentsPage } from './sales/DocumentsPage';
@@ -97,5 +98,6 @@ export default function App() {
   useEffect(() => { const offline = () => setState('offline'); const online = () => setAttempt(value => value + 1); window.addEventListener('offline', offline); window.addEventListener('online', online); return () => { window.removeEventListener('offline', offline); window.removeEventListener('online', online); }; }, []);
   if (preview) return <AppShell telegram={telegram} preview runtime={{ ...runtime, colorScheme: new URLSearchParams(window.location.search).get('theme') === 'dark' ? 'dark' : 'light' }} />;
   if (state !== 'ready' || !session) return <main className="app-shell state-shell" data-theme={runtime.colorScheme}><StatusView state={state === 'ready' ? 'error' : state} message={error || undefined} onRetry={state === 'loading' ? undefined : () => setAttempt(value => value + 1)} /></main>;
+  if (new URLSearchParams(window.location.search).get('owner') === '1') return <OwnerDashboard />;
   return <AppShell telegram={telegram} runtime={runtime} businessId={session.businessId} data={homeData} pilotFeedback={pilotFeedback} onFeedbackSubmitted={()=>setPilotFeedback(current=>current?{...current,eligible:false,submitted:true}:current)} />;
 }

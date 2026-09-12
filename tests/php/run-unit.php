@@ -11,6 +11,18 @@ use Tinv\Http\OriginGuard;
 use Tinv\Support\Env;
 use Tinv\Support\Uuid;
 use Tinv\Telegram\WelcomeMessage;
+use Tinv\Telegram\OwnerLaunchMessage;
+
+Test::run('owner stats command is available only to configured private Telegram identity', function (): void {
+    $update = ['message' => ['chat' => ['id' => 777, 'type' => 'private'], 'from' => ['id' => 777, 'is_bot' => false], 'text' => '/stats']];
+    Test::equals(null, OwnerLaunchMessage::forUpdate($update, 'https://app.example.test', ''));
+    Test::equals(null, OwnerLaunchMessage::forUpdate($update, 'https://app.example.test', '778'));
+    $response = OwnerLaunchMessage::forUpdate($update, 'https://app.example.test', '777');
+    Test::assert(is_array($response));
+    Test::equals('https://app.example.test/?owner=1', $response['reply_markup']['inline_keyboard'][0][0]['web_app']['url']);
+    $update['message']['chat']['type'] = 'group';
+    Test::equals(null, OwnerLaunchMessage::forUpdate($update, 'https://app.example.test', '777'));
+});
 
 Test::run('private start returns Persian welcome and one inline Mini App button', function (): void {
     $response = WelcomeMessage::forUpdate([
