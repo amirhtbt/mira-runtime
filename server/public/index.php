@@ -322,7 +322,7 @@ try {
     if ($method === 'POST' && preg_match('#^/api/v1/documents/([0-9a-f-]{36})/exports$#', $path, $match)) {
         $context = $sessionContext();
         $export = $salesService->recordExport($context->businessId, $match[1], Json::body());
-        $event = ['png' => 'image_exported', 'pdf' => 'pdf_exported', 'share' => 'share_started'][$export['format']];
+        $event = ['pdf' => 'pdf_exported', 'share' => 'share_started'][$export['format']];
         $pilot->recordBestEffort($context->userId, $context->businessId, $event, ['format' => $export['format']], 'export:' . $export['id']);
         Json::ok($export, 201);
     }

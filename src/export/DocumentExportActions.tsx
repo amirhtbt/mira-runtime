@@ -39,7 +39,7 @@ export function DocumentExportActions({doc}:{doc:SalesDocument}){
   }
   async function browserShareOrDownload(blob:Blob){
     const file=new File([blob],`${filename}.pdf`,{type:'application/pdf'});
-    if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){await navigator.share({title:documentTitle,text:`${doc.customerName} · ${doc.documentNumber}`,files:[file]});await recordDocumentExport(doc.id,{format:'share',byteSize:blob.size});setMessage('فایل با پنجره اشتراک‌گذاری دستگاه ارسال شد.');return;}
+    if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){await navigator.share({title:documentTitle,text:'سند ساخته شده با فاکتورساز بهار',files:[file]});await recordDocumentExport(doc.id,{format:'share',byteSize:blob.size});setMessage('فایل با پنجره اشتراک‌گذاری دستگاه ارسال شد.');return;}
     browserDownload(blob,file.name);await recordDocumentExport(doc.id,{format:'pdf',byteSize:blob.size});setMessage('اشتراک‌گذاری مستقیم در این نسخه در دسترس نیست؛ دانلود PDF توسط مرورگر شروع شد تا بتوانید فایل را دستی پیوست کنید.');
   }
   async function run(action:'pdf'|'share'){setBusy(true);setMessage('');try{

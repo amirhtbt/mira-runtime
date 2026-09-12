@@ -27,9 +27,12 @@ describe('G09 Bahar public runtime contract', () => {
     const actions = readFileSync('src/export/DocumentExportActions.tsx', 'utf8');
     const delivery = readFileSync('src/export/deliveryApi.ts', 'utf8');
     const bridge = readFileSync('server/public/export-bridge.php', 'utf8');
+    const api = readFileSync('src/api/client.ts', 'utf8');
     expect(actions).not.toContain('دریافت تصویر');
     expect(delivery).not.toContain("'png'");
     expect(bridge).not.toContain("'png'");
+    expect(api).not.toMatch(/recordDocumentExport[^\n]*'png'/);
     expect(actions).toContain('دریافت PDF');
+    expect(actions).toContain("text:'سند ساخته شده با فاکتورساز بهار'");
   });
 });

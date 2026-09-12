@@ -27,6 +27,9 @@ Test::run('G09 temporary PDF is unguessable, PDF-only and physically expiring', 
 
     $extended = $service->extendExpiry($stored['token'], time() + 86_400);
     Test::assert($extended <= time() + TemporaryExportFileService::SHARE_TTL_CAP_SECONDS + 2);
+    $pdo->prepare('UPDATE temporary_export_files SET created_at=DATE_SUB(UTC_TIMESTAMP(), INTERVAL 50 MINUTE) WHERE token_hash=?')->execute([hash('sha256',$stored['token'],true)]);
+    $secondExtension = $service->extendExpiry($stored['token'], time() + 86_400);
+    Test::assert($secondExtension <= time() + 10 * 60 + 2);
 
     $expired = $service->store($businessId,$documentId,$pdf,'application/pdf','expired-test.pdf');
     $expiredHash = hash('sha256',$expired['token'],true);

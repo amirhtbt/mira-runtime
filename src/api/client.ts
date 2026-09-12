@@ -128,7 +128,7 @@ export async function findCustomers(phone:string):Promise<CustomerProfile[]>{ret
 export async function listCustomers(query=''):Promise<CustomerProfile[]>{return requireData(await request<{customers:CustomerProfile[]}>(`/api/v1/customers?query=${encodeURIComponent(query)}`),'customer_list_failed').customers;}
 export async function saveCustomer(input:Omit<CustomerProfile,'id'|'normalizedMobile'>):Promise<CustomerProfile>{return requireData(await request<CustomerProfile>('/api/v1/customers',{method:'POST',body:JSON.stringify(input)}),'customer_save_failed');}
 export async function updateCustomer(id:string,input:Omit<CustomerProfile,'id'|'normalizedMobile'>):Promise<CustomerProfile>{return requireData(await request<CustomerProfile>(`/api/v1/customers/${encodeURIComponent(id)}`,{method:'PUT',body:JSON.stringify(input)}),'customer_update_failed');}
-export async function recordDocumentExport(id:string,input:{format:'png'|'pdf'|'share';byteSize:number}):Promise<void>{requireData(await request<{id:string}>(`/api/v1/documents/${encodeURIComponent(id)}/exports`,{method:'POST',body:JSON.stringify(input)}),'export_record_failed');}
+export async function recordDocumentExport(id:string,input:{format:'pdf'|'share';byteSize:number}):Promise<void>{requireData(await request<{id:string}>(`/api/v1/documents/${encodeURIComponent(id)}/exports`,{method:'POST',body:JSON.stringify(input)}),'export_record_failed');}
 
 export interface PilotFeedbackStatus {eligible:boolean;submitted:boolean;issuedDocuments:number;activeDays:number}
 export interface PilotStatus {feedback:PilotFeedbackStatus;metrics:Record<string,number|null>}

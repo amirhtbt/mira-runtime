@@ -61,7 +61,7 @@ describe('G02 app shell', () => {
     expect(screen.queryByRole('dialog', { name: 'پیش‌نمایش کامل سند' })).toBeNull();
     expect((screen.getByLabelText('نام مشتری یا شرکت') as HTMLInputElement).value).toBe('مشتری محفوظ');
     expect((screen.getByLabelText('شناسه ملی') as HTMLInputElement).value).toBe('1234567890');
-    expect(JSON.parse(localStorage.getItem('bahar:sales-draft:tenant-a')||'{}').nationalId).toBe('1234567890');
+    expect(JSON.parse(localStorage.getItem('mira:sales-draft:tenant-a')||'{}').nationalId).toBe('1234567890');
   });
 
   it('renders designed offline and retry states', () => {
