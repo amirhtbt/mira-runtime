@@ -9,9 +9,10 @@ use RuntimeException;
 final readonly class TemporaryExportFileService
 {
     public const MAX_BYTES = 8_388_608;
-    // Files exist only as a delivery bridge. One-hour expiry plus the hourly
-    // sweeper keeps physical retention below the owner's two-hour ceiling.
-    public const DOWNLOAD_TTL_SECONDS = 3_600;
+    // Download payloads expire after 30 minutes; prepared-share payloads may
+    // extend to one hour. The hourly sweeper then keeps physical retention
+    // within the owner's two-hour ceiling while document data stays durable.
+    public const DOWNLOAD_TTL_SECONDS = 1_800;
     public const SHARE_TTL_CAP_SECONDS = 3_600;
 
     public function __construct(private PDO $pdo) {}
