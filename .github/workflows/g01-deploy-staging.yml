@@ -88,6 +88,24 @@ jobs:
             -o Dir::Etc::sourceparts=-
           sudo apt-get install -y -qq lftp
 
+      - name: Verify target bot identity before changing the live runtime
+        env:
+          STAGING_TELEGRAM_BOT_TOKEN: ${{ secrets.STAGING_TELEGRAM_BOT_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.error, urllib.request
+          token = os.environ['STAGING_TELEGRAM_BOT_TOKEN']
+          try:
+              request = urllib.request.Request('https://api.telegram.org/bot' + token + '/getMe', data=b'')
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  result = json.load(response)
+          except (urllib.error.HTTPError, urllib.error.URLError):
+              raise SystemExit('Target bot identity check failed; live runtime was not changed') from None
+          if result.get('ok') is not True or result.get('result', {}).get('username', '').lower() != 'factorsaazbot':
+              raise SystemExit('Secret must belong to @Factorsaazbot; live runtime was not changed')
+          print('Verified target bot: @Factorsaazbot')
+          PY
+
       - name: Direct deploy, env sync and migration on isolated cPanel staging root
         env:
           STAGING_FTPS_HOST: ${{ secrets.STAGING_FTPS_HOST }}
@@ -171,5 +189,23 @@ jobs:
           })
           if bot_api('getWebhookInfo').get('url') != url:
               raise SystemExit('Staging webhook URL was not verified')
-          print('Staging bot welcome webhook active on approved host; authenticated webhook configured')
+          for language in ('', 'fa'):
+              bot_api('setMyName', {'name': 'فاکتورساز | فاکتور و پیش‌فاکتور', 'language_code': language})
+              bot_api('setMyShortDescription', {
+                  'short_description': 'ساخت فاکتور و پیش‌فاکتور فارسی، دریافت PDF و مدیریت اسناد مشتریان در تلگرام.',
+                  'language_code': language,
+              })
+              bot_api('setMyDescription', {
+                  'description': 'فاکتور و پیش‌فاکتور حرفه‌ای بسازید، اطلاعات کسب‌وکار و مشتریان را ذخیره کنید و خروجی PDF دریافت کنید. برای شروع، دکمهٔ «بازکردن فاکتورساز» را بزنید.',
+                  'language_code': language,
+              })
+          menu = {'type': 'web_app', 'text': 'بازکردن فاکتورساز', 'web_app': {'url': origin}}
+          bot_api('setChatMenuButton', {'menu_button': json.dumps(menu, ensure_ascii=False)})
+          bot_api('setMyCommands', {'commands': json.dumps([{'command': 'start', 'description': 'بازکردن فاکتورساز'}], ensure_ascii=False)})
+          actual_menu = bot_api('getChatMenuButton')
+          if actual_menu.get('type') != 'web_app' or actual_menu.get('web_app', {}).get('url') != origin:
+              raise SystemExit('Bot Mini App menu was not verified')
+          if bot_api('getMyName').get('name') != 'فاکتورساز | فاکتور و پیش‌فاکتور':
+              raise SystemExit('Bot display name was not verified')
+          print('Factorsaazbot webhook, profile and Mini App menu configured and verified')
           PY
