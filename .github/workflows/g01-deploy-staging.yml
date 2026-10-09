@@ -203,7 +203,8 @@ jobs:
           bot_api('setChatMenuButton', {'menu_button': json.dumps(menu, ensure_ascii=False)})
           bot_api('setMyCommands', {'commands': json.dumps([{'command': 'start', 'description': 'بازکردن فاکتورساز'}], ensure_ascii=False)})
           actual_menu = bot_api('getChatMenuButton')
-          if actual_menu.get('type') != 'web_app' or actual_menu.get('web_app', {}).get('url') != origin:
+          print('Menu verification:', json.dumps(actual_menu, ensure_ascii=False))
+          if actual_menu.get('type') != 'web_app' or actual_menu.get('web_app', {}).get('url', '').rstrip('/') != origin:
               raise SystemExit('Bot Mini App menu was not verified')
           if bot_api('getMyName').get('name') != 'فاکتورساز | فاکتور و پیش‌فاکتور':
               raise SystemExit('Bot display name was not verified')
