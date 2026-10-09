@@ -1,0 +1,85 @@
+name: Configure Factorsaazbot
+on:
+  push:
+    branches: ['main']
+    paths: ['.github/workflows/configure-factorsaazbot.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: telegram-invoice-staging-deploy
+  cancel-in-progress: false
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure and verify Factorsaazbot
+        env:
+          STAGING_ORIGIN: ${{ secrets.STAGING_ORIGIN }}
+          STAGING_TELEGRAM_BOT_TOKEN: ${{ secrets.STAGING_TELEGRAM_BOT_TOKEN }}
+          STAGING_SESSION_PEPPER: ${{ secrets.STAGING_SESSION_PEPPER }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, hmac, json, os, urllib.error, urllib.parse, urllib.request
+
+          origin = os.environ['STAGING_ORIGIN'].rstrip('/')
+          token = os.environ['STAGING_TELEGRAM_BOT_TOKEN']
+          pepper = os.environ['STAGING_SESSION_PEPPER']
+          if origin != 'https://invoice-staging.box4u.co' or not token or not pepper:
+              raise SystemExit('Staging bot settings do not match the approved host')
+          url = origin + '/bot-webhook.php'
+          def bot_api(method, payload=None):
+              endpoint = 'https://api.telegram.org/bot' + token + '/' + method
+              body = urllib.parse.urlencode(payload or {}).encode()
+              try:
+                  with urllib.request.urlopen(urllib.request.Request(endpoint, data=body), timeout=30) as response:
+                      data = json.load(response)
+              except (urllib.error.HTTPError, urllib.error.URLError):
+                  raise SystemExit('Telegram ' + method + ' request failed') from None
+              if data.get('ok') is not True:
+                  raise SystemExit('Telegram ' + method + ' returned an error')
+              return data['result']
+
+          if bot_api('getMe').get('username', '').lower() != 'factorsaazbot':
+              raise SystemExit('Secret must belong to @Factorsaazbot')
+          current = bot_api('getWebhookInfo').get('url', '')
+          if current not in ('', url):
+              raise SystemExit('An unrelated staging webhook is already configured; refusing to overwrite it')
+          try:
+              request = urllib.request.Request(url, data=b'{}', method='POST')
+              urllib.request.urlopen(request, timeout=20)
+              raise SystemExit('Webhook accepted an unauthenticated request')
+          except urllib.error.HTTPError as error:
+              if error.code != 403:
+                  raise SystemExit('Webhook did not reject unauthenticated requests with 403') from None
+          secret = hmac.new(pepper.encode(), b'tinv-welcome-webhook-v1', hashlib.sha256).hexdigest()
+          bot_api('setWebhook', {
+              'url': url,
+              'secret_token': secret,
+              'allowed_updates': json.dumps(['message']),
+              'drop_pending_updates': 'false',
+              'max_connections': '5',
+          })
+          if bot_api('getWebhookInfo').get('url') != url:
+              raise SystemExit('Staging webhook URL was not verified')
+          for language in ('', 'fa'):
+              bot_api('setMyName', {'name': 'فاکتورساز | فاکتور و پیش‌فاکتور', 'language_code': language})
+              bot_api('setMyShortDescription', {
+                  'short_description': 'ساخت فاکتور و پیش‌فاکتور فارسی، دریافت PDF و مدیریت اسناد مشتریان در تلگرام.',
+                  'language_code': language,
+              })
+              bot_api('setMyDescription', {
+                  'description': 'فاکتور و پیش‌فاکتور حرفه‌ای بسازید، اطلاعات کسب‌وکار و مشتریان را ذخیره کنید و خروجی PDF دریافت کنید. برای شروع، دکمهٔ «بازکردن فاکتورساز» را بزنید.',
+                  'language_code': language,
+              })
+          menu = {'type': 'web_app', 'text': 'بازکردن فاکتورساز', 'web_app': {'url': origin}}
+          bot_api('setChatMenuButton', {'menu_button': json.dumps(menu, ensure_ascii=False)})
+          bot_api('setMyCommands', {'commands': json.dumps([{'command': 'start', 'description': 'بازکردن فاکتورساز'}], ensure_ascii=False)})
+          actual_menu = bot_api('getChatMenuButton')
+          print('Menu verification:', json.dumps(actual_menu, ensure_ascii=False))
+          if actual_menu.get('type') != 'web_app' or actual_menu.get('web_app', {}).get('url', '').rstrip('/') != origin:
+              raise SystemExit('Bot Mini App menu was not verified')
+          if bot_api('getMyName').get('name') != 'فاکتورساز | فاکتور و پیش‌فاکتور':
+              raise SystemExit('Bot display name was not verified')
+          print('Factorsaazbot webhook, profile and Mini App menu configured and verified')
+          PY
