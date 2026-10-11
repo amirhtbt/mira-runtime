@@ -7,7 +7,7 @@ import { InvoiceTemplate } from '../templates/InvoiceTemplate';
 import { getTemplate } from '../templates/registry';
 import type { InvoiceViewModel, TemplateId } from '../templates/types';
 import { stageExportFile } from './deliveryApi';
-import { canUseTelegramDownload, isDeliveryCancellation, requestTelegramDownload } from './telegramNativeDelivery';
+import { canUseTelegramDownload, canUseTelegramShare, isDeliveryCancellation, requestTelegramDownload, requestTelegramShare, openExportLink } from './telegramNativeDelivery';
 
 const pageSize = 12;
 const shippingNames:Record<string,string>={pickup:'تحویل حضوری',snapp_box:'پیک اسنپ‌باکس؛ کرایه در مقصد',snapp_car:'ماشین اسنپ؛ کرایه در مقصد',snapp_van:'وانت اسنپ؛ کرایه در مقصد',post:'پست؛ کرایه در مقصد',tipax:'تیپاکس؛ کرایه در مقصد'};
@@ -25,19 +25,33 @@ export function documentViewModel(doc:SalesDocument):InvoiceViewModel{
     payment:doc.documentType==='proforma'?payment:undefined,signature:{sellerLabel:'مهر و امضای فروشنده',customerLabel:'تأیید خریدار',showStampArea:true},templateId:template.id as TemplateId,templateVersion:template.version,orientation:'landscape',accent:settings?.visual.accent,cancelled:doc.lifecycleStatus==='cancelled'};
 }
 
-const browserDownload=(blob:Blob,name:string)=>{const url=URL.createObjectURL(blob);const anchor=document.createElement('a');anchor.href=url;anchor.download=name;anchor.rel='noopener';document.body.appendChild(anchor);anchor.click();anchor.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);};
 const isMobileDevice=()=>/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 export function DocumentExportActions({doc}:{doc:SalesDocument}){
   const model=useMemo(()=>documentViewModel(doc),[doc]);const pages=useMemo(()=>paginateDocumentModel(model),[model]);
-  const refs=useRef<Array<HTMLElement|null>>([]);const prepared=useRef<Blob|null>(null);const[ready,setReady]=useState(false);const[busy,setBusy]=useState(false);const[message,setMessage]=useState('');const filename=`${doc.documentType==='proforma'?'proforma':'invoice'}-${doc.documentNumber||doc.id}`;const documentTitle=doc.documentType==='proforma'?'پیش‌فاکتور':'فاکتور فروش';
+  const refs=useRef<Array<HTMLElement|null>>([]);const prepared=useRef<Blob|null>(null);const[ready,setReady]=useState(false);const[busy,setBusy]=useState(false);const[message,setMessage]=useState('');const[downloadLink,setDownloadLink]=useState<{url:string;fileName:string;expiresAt:number}|null>(null);const filename=`${doc.documentType==='proforma'?'proforma':'invoice'}-${doc.documentNumber||doc.id}`;const documentTitle=doc.documentType==='proforma'?'پیش‌فاکتور':'فاکتور فروش';
   async function pdf(){await document.fonts.ready;const output=new jsPDF({orientation:'landscape',unit:'mm',format:'a4',compress:true});for(let index=0;index<refs.current.length;index++){const node=refs.current[index];if(!node)continue;if(index)output.addPage('a4','landscape');const jpeg=await toJpeg(node,{pixelRatio:2,quality:.94,cacheBust:true,backgroundColor:'#ffffff'});output.addImage(jpeg,'JPEG',0,0,297,210,undefined,'FAST');}return output.output('blob');}
   useEffect(()=>{let cancelled=false;prepared.current=null;setReady(false);void pdf().then(blob=>{if(!cancelled){prepared.current=blob;setReady(true);}}).catch(()=>{if(!cancelled)setMessage('آماده‌سازی PDF انجام نشد؛ پیش‌نمایش را دوباره باز کنید.');});return()=>{cancelled=true;prepared.current=null;};},[doc.id,doc.version,model]);
   async function deliverDownload(blob:Blob,fileName:string){
-    if(isMobileDevice() && canUseTelegramDownload()){
-      try{const delivery=await stageExportFile({documentId:doc.id,purpose:'download',format:'pdf',blob,fileName,title:documentTitle});await requestTelegramDownload(delivery.url,delivery.fileName);return 'telegram' as const;}catch(error){if(isDeliveryCancellation(error))throw error;void recordPilotEvent('export_failed',{format:'pdf',stage:'download'}).catch(()=>undefined);}
+    const delivery=await stageExportFile({documentId:doc.id,purpose:'download',format:'pdf',blob,fileName,title:documentTitle});
+    setDownloadLink(delivery);
+    if(canUseTelegramDownload()){
+      try{await requestTelegramDownload(delivery.url,delivery.fileName);return 'telegram' as const;}
+      catch(error){if(isDeliveryCancellation(error))throw error;}
     }
-    browserDownload(blob,fileName);return 'browser' as const;
+    return 'link' as const;
+  }
+  async function telegramShare(blob:Blob){
+    if(!canUseTelegramShare()){
+      await deliverDownload(blob,`${filename}.pdf`);
+      setMessage('ارسال مستقیم در این نسخهٔ تلگرام پشتیبانی نمی‌شود. از لینک ذخیرهٔ فایل زیر استفاده کنید.');return;
+    }
+    const delivery=await stageExportFile({documentId:doc.id,purpose:'share',format:'pdf',blob,fileName:`${filename}.pdf`,title:documentTitle});
+    setDownloadLink(delivery);
+    if(!delivery.preparedMessageId)throw new Error('share_not_prepared');
+    await requestTelegramShare(delivery.preparedMessageId);
+    void recordDocumentExport(doc.id,{format:'share',byteSize:blob.size}).catch(()=>undefined);
+    setMessage('ارسال فایل در تلگرام انجام شد؛ فایل را در گفت‌وگوی انتخاب‌شده مشاهده کنید.');
   }
   async function browserShareOrDownload(blob:Blob){
     const file=new File([blob],`${filename}.pdf`,{type:'application/pdf'});
@@ -45,20 +59,21 @@ export function DocumentExportActions({doc}:{doc:SalesDocument}){
       let canShareFile=false;
       try{canShareFile=!navigator.canShare||navigator.canShare({files:[file]});}catch{canShareFile=false;}
       if(canShareFile){
-        try{await navigator.share({title:documentTitle,text:'سند ساخته شده با فاکتورساز بهار',files:[file]});await recordDocumentExport(doc.id,{format:'share',byteSize:blob.size});setMessage('فایل با پنجره اشتراک‌گذاری دستگاه ارسال شد.');return;}
+        try{await navigator.share({title:documentTitle,text:'سند ساخته شده با فاکتورساز بهار',files:[file]});void recordDocumentExport(doc.id,{format:'share',byteSize:blob.size}).catch(()=>undefined);setMessage('فایل با پنجره اشتراک‌گذاری دستگاه ارسال شد.');return;}
         catch(error){if(error instanceof DOMException && error.name==='AbortError')throw error;/* WebView may reject file shares despite advertising support. */}
       }
     }
     const channel=await deliverDownload(blob,file.name);
-    await recordDocumentExport(doc.id,{format:'pdf',byteSize:blob.size});
-    setMessage(channel==='telegram'?'تلگرام پنجره ذخیره PDF را باز کرد. بعد از ذخیره، فایل را از «فایل‌ها/Downloads» با واتساپ، بله یا هر برنامهٔ دیگری اشتراک‌گذاری کنید.':'اشتراک‌گذاری مستقیم فایل در این دستگاه در دسترس نیست. PDF دانلود شد؛ آن را از «فایل‌ها/Downloads» در پیام‌رسان دلخواه پیوست کنید.');
+    void recordDocumentExport(doc.id,{format:'pdf',byteSize:blob.size}).catch(()=>undefined);
+    setMessage(channel==='telegram'?'تلگرام پنجره ذخیره PDF را باز کرد. بعد از ذخیره، فایل را از «فایل‌ها/Downloads» با واتساپ، بله یا هر برنامهٔ دیگری اشتراک‌گذاری کنید.':'فایل آماده است؛ از دکمهٔ «ذخیره فایل در مرورگر» زیر استفاده کنید.');
   }
-  async function run(action:'pdf'|'share'){setBusy(true);setMessage('');try{
+  async function run(action:'pdf'|'share'|'telegram'){setBusy(true);setMessage('');try{
     const blob=prepared.current;if(!blob)throw new Error('pdf_not_ready');
+    if(action==='telegram'){await telegramShare(blob);return;}
     if(action==='share'){
       await browserShareOrDownload(blob);return;
     }
-    const channel=await deliverDownload(blob,`${filename}.pdf`);await recordDocumentExport(doc.id,{format:'pdf',byteSize:blob.size});setMessage(channel==='telegram'?'پنجره دانلود تلگرام باز شد؛ محل ذخیره را خود تلگرام/سیستم‌عامل مدیریت می‌کند.':'دانلود PDF توسط مرورگر شروع شد؛ فایل را در بخش Downloads دستگاه یا مرورگر بررسی کنید.');
-  }catch(error){const cancelled=isDeliveryCancellation(error);if(!cancelled)void recordPilotEvent('export_failed',{format:action,stage:action==='share'?'share':'render'}).catch(()=>undefined);setMessage(cancelled?(action==='share'?'اشتراک‌گذاری لغو شد؛ سند شما محفوظ است.':'دانلود لغو شد؛ سند شما محفوظ است.'):'ساخت یا تحویل فایل انجام نشد؛ اطلاعات سند محفوظ است و می‌توانید دوباره تلاش کنید.');}finally{setBusy(false);}}
-  return <div className="export-actions"><div className="export-buttons"><button disabled={busy||!ready} onClick={()=>void run('pdf')}>دریافت PDF</button><button className="primary-button" disabled={busy||!ready} onClick={()=>void run('share')}>اشتراک‌گذاری فایل</button></div>{!ready&&!message&&<p role="status">در حال آماده‌سازی PDF…</p>}{message&&<p role="status">{message}</p>}<div className="export-render-stage" aria-hidden="true">{pages.map((page,index)=><div key={index} ref={node=>{refs.current[index]=node;}}><InvoiceTemplate model={page}/></div>)}</div></div>;
+    const channel=await deliverDownload(blob,`${filename}.pdf`);void recordDocumentExport(doc.id,{format:'pdf',byteSize:blob.size}).catch(()=>undefined);setMessage(channel==='telegram'?'پنجره دانلود تلگرام باز شد؛ محل ذخیره را خود تلگرام/سیستم‌عامل مدیریت می‌کند.':'فایل آماده است؛ دکمهٔ «ذخیره فایل در مرورگر» زیر را بزنید و محل ذخیره را انتخاب کنید.');
+  }catch(error){const cancelled=isDeliveryCancellation(error);if(!cancelled)void recordPilotEvent('export_failed',{format:action==='telegram'?'share':action,stage:action==='pdf'?'download':'share'}).catch(()=>undefined);setMessage(cancelled?(action!=='pdf'?'اشتراک‌گذاری لغو شد؛ سند شما محفوظ است.':'دانلود لغو شد؛ سند شما محفوظ است.'):'ساخت یا تحویل فایل انجام نشد؛ اطلاعات سند محفوظ است و می‌توانید دوباره تلاش کنید.');}finally{setBusy(false);}}
+  return <div className="export-actions"><div className="export-buttons"><button className="primary-button" disabled={busy||!ready} onClick={()=>void run('telegram')}>ارسال فایل در تلگرام</button><button disabled={busy||!ready} onClick={()=>void run('pdf')}>دریافت PDF</button><button className="primary-button" disabled={busy||!ready} onClick={()=>void run('share')}>اشتراک‌گذاری فایل</button></div>{!ready&&!message&&<p role="status">در حال آماده‌سازی PDF…</p>}{busy&&<p role="status">در حال آماده‌سازی و تحویل فایل…</p>}{message&&<p role="status">{message}</p>}{downloadLink&&<div><p>{downloadLink.fileName}</p><a className="secondary-button" href={downloadLink.url} onClick={event=>{if(openExportLink(downloadLink.url))event.preventDefault();}} target="_blank" rel="noopener noreferrer" download={downloadLink.fileName}>ذخیره فایل در مرورگر</a><p>برای داشتن فایل داخل تلگرام، «ارسال فایل در تلگرام» را بزنید و «پیام‌های ذخیره‌شده» را انتخاب کنید. لینک ذخیره موقت است.</p></div>}<div className="export-render-stage" aria-hidden="true">{pages.map((page,index)=><div key={index} ref={node=>{refs.current[index]=node;}}><InvoiceTemplate model={page}/></div>)}</div></div>;
 }

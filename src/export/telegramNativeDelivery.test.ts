@@ -5,6 +5,8 @@ const sdk = vi.hoisted(() => {
   const share = vi.fn(async () => undefined);
   return {
     download,
+    open: vi.fn(),
+    openAvailable: vi.fn(() => false),
     share,
     downloadAvailable: vi.fn(() => false),
     shareAvailable: vi.fn(() => false),
@@ -13,10 +15,11 @@ const sdk = vi.hoisted(() => {
 
 vi.mock('@tma.js/sdk', () => ({
   downloadFile: Object.assign(sdk.download, { isAvailable: sdk.downloadAvailable }),
+  openLink: Object.assign(sdk.open, {isAvailable:sdk.openAvailable}),
   shareMessage: Object.assign(sdk.share, { isAvailable: sdk.shareAvailable }),
 }));
 
-import { canUseTelegramDownload, canUseTelegramShare, isDeliveryCancellation, requestTelegramDownload, requestTelegramShare } from './telegramNativeDelivery';
+import { canUseTelegramDownload, canUseTelegramShare, isDeliveryCancellation, requestTelegramDownload, requestTelegramShare, openExportLink } from './telegramNativeDelivery';
 
 describe('Telegram native export delivery', () => {
   beforeEach(() => {
@@ -39,6 +42,14 @@ describe('Telegram native export delivery', () => {
     await requestTelegramShare('prepared-message-id');
     expect(sdk.download).toHaveBeenCalledWith('https://example.test/export-file/token/invoice.pdf', 'invoice.pdf');
     expect(sdk.share).toHaveBeenCalledWith('prepared-message-id');
+  });
+
+  it('opens the visible fallback in an external browser when supported', () => {
+    sdk.openAvailable.mockReturnValue(true);
+    expect(openExportLink('https://example.test/export-file/token/invoice.pdf')).toBe(true);
+    expect(sdk.open).toHaveBeenCalledWith('https://example.test/export-file/token/invoice.pdf');
+    sdk.openAvailable.mockReturnValue(false);
+    expect(openExportLink('https://example.test/file.pdf')).toBe(false);
   });
 
   it('recognizes native user cancellation without treating it as document loss', () => {

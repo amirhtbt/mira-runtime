@@ -51,7 +51,8 @@ test.describe('G09 phase 0 smoke', () => {
 
     await expectNoHorizontalOverflow(page);
     expect(pageErrors).toEqual([]);
-    expect(consoleErrors).toEqual([]);
+    // Cloudflare injects optional analytics; CSP correctly blocks it. Keep all other errors fatal.
+    expect(consoleErrors.filter(error => !(error.startsWith("Refused to load the script 'https://static.cloudflareinsights.com/beacon.min.js/") && error.includes('Content Security Policy') && error.includes("script-src 'self'")))).toEqual([]);
   });
 
   test('staging health reports G09 when an external staging base URL is selected', async ({ request }) => {
