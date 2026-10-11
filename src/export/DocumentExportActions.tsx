@@ -25,6 +25,7 @@ export function documentViewModel(doc:SalesDocument):InvoiceViewModel{
     payment:doc.documentType==='proforma'?payment:undefined,signature:{sellerLabel:'مهر و امضای فروشنده',customerLabel:'تأیید خریدار',showStampArea:true},templateId:template.id as TemplateId,templateVersion:template.version,orientation:'landscape',accent:settings?.visual.accent,cancelled:doc.lifecycleStatus==='cancelled'};
 }
 
+const browserDownload=(blob:Blob,name:string)=>{const url=URL.createObjectURL(blob);const anchor=document.createElement('a');anchor.href=url;anchor.download=name;document.body.appendChild(anchor);anchor.click();anchor.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);};
 const isMobileDevice=()=>/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 export function DocumentExportActions({doc}:{doc:SalesDocument}){
@@ -33,6 +34,7 @@ export function DocumentExportActions({doc}:{doc:SalesDocument}){
   async function pdf(){await document.fonts.ready;const output=new jsPDF({orientation:'landscape',unit:'mm',format:'a4',compress:true});for(let index=0;index<refs.current.length;index++){const node=refs.current[index];if(!node)continue;if(index)output.addPage('a4','landscape');const jpeg=await toJpeg(node,{pixelRatio:2,quality:.94,cacheBust:true,backgroundColor:'#ffffff'});output.addImage(jpeg,'JPEG',0,0,297,210,undefined,'FAST');}return output.output('blob');}
   useEffect(()=>{let cancelled=false;prepared.current=null;setReady(false);void pdf().then(blob=>{if(!cancelled){prepared.current=blob;setReady(true);}}).catch(()=>{if(!cancelled)setMessage('آماده‌سازی PDF انجام نشد؛ پیش‌نمایش را دوباره باز کنید.');});return()=>{cancelled=true;prepared.current=null;};},[doc.id,doc.version,model]);
   async function deliverDownload(blob:Blob,fileName:string){
+    if(doc.id==='preview'){browserDownload(blob,fileName);return 'browser' as const;}
     const delivery=await stageExportFile({documentId:doc.id,purpose:'download',format:'pdf',blob,fileName,title:documentTitle});
     setDownloadLink(delivery);
     if(canUseTelegramDownload()){
