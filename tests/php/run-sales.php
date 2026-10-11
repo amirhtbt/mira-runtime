@@ -40,7 +40,8 @@ Test::run('G04 integer-only deterministic money calculation',function():void{
 Test::run('G04.1 normalizes Iranian mobiles and isolates reusable customers',function()use($pdo,$one,$two):void{
     Test::equals('09121234567',CustomerDirectory::mobile('+98 912 123 4567'));
     $directory=new CustomerDirectory($pdo);
-    $saved=$directory->save($one->context->businessId,['displayName'=>'شرکت مشتری','phone'=>'+989121234567','address'=>'تهران','isOfficial'=>true,'nationalId'=>'1234567890']);
+    $saved=$directory->save($one->context->businessId,['displayName'=>'شرکت مشتری','phone'=>'+۹۸ ۹۱۲ ۱۲۳ ۴۵۶۷','address'=>'تهران','isOfficial'=>true,'nationalId'=>'1234567890']);
+    Test::equals('09121234567', $saved['phone']);
     Test::equals($saved['id'],$directory->search($one->context->businessId,'09121234567')[0]['id']);
     Test::equals($saved['id'],$directory->list($one->context->businessId)[0]['id']);
     Test::equals($saved['id'],$directory->list($one->context->businessId,'شرکت مشتری')[0]['id']);

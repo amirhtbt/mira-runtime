@@ -28,7 +28,15 @@ describe('G05 landscape template platform', () => {
     expect(container.textContent).toContain('۰۲۱-۸۸۸۸۱۲۳۴');
     expect(container.textContent).toContain('۰۹۱۲۱۲۳۴۵۶۷');
   });
-  it('omits undefined optional fields', () => {
+  it('normalizes legacy contact text and isolates direction in every template', () => {
+    for (const template of templates) {
+      const model = fixture(template.id); model.customer.phone = '+۹۸ ۹۱۲\u00a0۱۲۳ ۴۵۶۷';
+      const { container, unmount } = render(<InvoiceTemplate model={model}/>);
+      const phone = Array.from(container.querySelectorAll('bdi[dir="ltr"]')).find(e => e.textContent === '۰۹۱۲۱۲۳۴۵۶۷');
+      expect(phone).toBeTruthy(); unmount();
+    }
+  });
+  it('omits undefined optional fields' , () => {
     const model = fixture(); model.seller = { name: 'فروشنده' }; model.customer = { name: 'خریدار' }; model.payment = undefined; model.sellerNote = undefined; model.paymentTerms = undefined; model.shippingTerms = undefined; model.validityNotice = undefined; model.footer = undefined; model.thankYou = undefined;
     const { container } = render(<InvoiceTemplate model={model}/>); expect(container.textContent).not.toContain('شناسه ملی'); expect(container.textContent).not.toContain('اطلاعات پرداخت'); expect(container.textContent).not.toContain('شرایط و توضیحات');
   });

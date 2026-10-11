@@ -64,7 +64,7 @@ Test::run('G03 persists mixed Persian Latin seller payment and presentation sett
     ], $now + 1);
     Test::equals(1, $saved['version']);
     Test::equals('فروشگاه Mira 24', $saved['settings']['seller']['businessName']);
-    Test::equals('0912 123 4567', $saved['settings']['seller']['phone']);
+    Test::equals('09121234567', $saved['settings']['seller']['phone']);
     Test::equals('mira_test', $saved['settings']['seller']['telegramUsername']);
     Test::equals('1111222233334444', $saved['settings']['payment']['cardNumber']);
     Test::equals('IR111111111111111111111111', $saved['settings']['payment']['sheba']);

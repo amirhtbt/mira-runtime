@@ -1,3 +1,4 @@
+import { normalizePhone } from '../format/phone';
 import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from 'react';
 import { businessLogoUrl, deleteBusinessLogo, deleteOfficialLogo, getBusinessSettings, officialLogoUrl, recordPilotEvent, updateBusinessSettings, uploadBusinessLogo, uploadOfficialLogo } from '../api/client';
 import type { BusinessSettings, CustomAdjustmentDefault, SettingsResponse } from './types';
@@ -16,7 +17,7 @@ function Field({ label, value, onChange, placeholder, dir, maxLength = 120, mult
 }) {
   return <label className="settings-field"><span>{label}</span>{multiline
     ? <textarea value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} dir={dir} maxLength={maxLength} rows={3} />
-    : <input value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} dir={dir} maxLength={maxLength} inputMode={inputMode} />}</label>;
+    : <input value={value} onChange={event => onChange(inputMode === 'tel' ? normalizePhone(event.target.value) : event.target.value)} placeholder={placeholder} dir={dir} maxLength={maxLength} inputMode={inputMode} />}</label>;
 }
 
 function SelectField({ label, value, onChange, children }: { label: string; value: string; onChange: (value: string) => void; children: ReactNode }) {

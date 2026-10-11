@@ -11,7 +11,7 @@ final readonly class CustomerDirectory
 
     public static function mobile(string $value): string
     {
-        $digits = strtr(trim($value), ['۰'=>'0','۱'=>'1','۲'=>'2','۳'=>'3','۴'=>'4','۵'=>'5','۶'=>'6','۷'=>'7','۸'=>'8','۹'=>'9','٠'=>'0','١'=>'1','٢'=>'2','٣'=>'3','٤'=>'4','٥'=>'5','٦'=>'6','٧'=>'7','٨'=>'8','٩'=>'9']);
+        $digits = strtr(\Tinv\Support\Phone::normalize($value), ['۰'=>'0','۱'=>'1','۲'=>'2','۳'=>'3','۴'=>'4','۵'=>'5','۶'=>'6','۷'=>'7','۸'=>'8','۹'=>'9','٠'=>'0','١'=>'1','٢'=>'2','٣'=>'3','٤'=>'4','٥'=>'5','٦'=>'6','٧'=>'7','٨'=>'8','٩'=>'9']);
         $digits = preg_replace('/[^0-9+]/', '', $digits) ?? '';
         if (str_starts_with($digits, '+98')) $digits = '0' . substr($digits, 3);
         elseif (str_starts_with($digits, '0098')) $digits = '0' . substr($digits, 4);
@@ -54,7 +54,7 @@ final readonly class CustomerDirectory
         self::keys($input,['displayName','phone','address','isOfficial','nationalId']);
         $name=trim((string)($input['displayName']??''));
         if($name===''||mb_strlen($name)>160||str_contains($name,'<'))throw new SalesValidationException('customer_name_invalid');
-        $phone=trim((string)($input['phone']??''));$normalized=self::mobile($phone);
+        $phone=self::mobile((string)($input['phone']??''));$normalized=$phone;
         $official=($input['isOfficial']??false)===true;$national=self::nationalId((string)($input['nationalId']??''),$official);
         $address=trim((string)($input['address']??''));if(mb_strlen($address)>500||str_contains($address,'<'))throw new SalesValidationException('customer_address_invalid');
         $now=gmdate('Y-m-d H:i:s');

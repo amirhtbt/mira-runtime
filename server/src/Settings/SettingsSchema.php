@@ -344,7 +344,8 @@ final class SettingsSchema
 
     private static function phone(mixed $value): string
     {
-        $phone = self::plainText($value, 32, 'seller_phone');
+        if (!is_string($value)) throw new SettingsValidationException('seller_phone_invalid');
+        $phone = self::plainText(\Tinv\Support\Phone::normalize($value), 32, 'seller_phone');
         if ($phone === '') return '';
         $phone = self::normalizeDigits($phone);
         if (preg_match('/^\+?[0-9().\-\s]{4,31}$/', $phone) !== 1) throw new SettingsValidationException('seller_phone_invalid');

@@ -132,3 +132,12 @@ Test::run('server environment is readable without relying on getenv', function (
         unset($_SERVER[$key], $_ENV[$key]);
     }
 });
+
+Test::run('contact normalization handles copied whitespace and Iranian prefixes', static function (): void {
+    foreach (['0912 123 4567', '+98 912 123 4567', '۰۰۹۸ ۹۱۲ ۱۲۳ ۴۵۶۷', "+۹۸\u{00A0}۹۱۲\u{200F}۱۲۳\n۴۵۶۷"] as $value) {
+        Test::equals('09121234567', \Tinv\Support\Phone::normalize($value));
+        Test::equals('09121234567', \Tinv\Sales\CustomerDirectory::mobile($value));
+    }
+    Test::equals('02188881234', \Tinv\Support\Phone::normalize('+98 21 8888 1234'));
+    Test::equals('+49123456', \Tinv\Support\Phone::normalize('+49 123 456'));
+});
