@@ -101,8 +101,12 @@ jobs:
           try:
               with urllib.request.urlopen(request, timeout=20) as response:
                   launch = json.load(response)
-          except (urllib.error.HTTPError, urllib.error.URLError, ValueError):
-              raise SystemExit('Owner stats launch verification failed') from None
+          except urllib.error.HTTPError as error:
+              raise SystemExit('Owner stats launch verification failed: HTTP ' + str(error.code)) from None
+          except urllib.error.URLError:
+              raise SystemExit('Owner stats launch verification failed: network') from None
+          except ValueError:
+              raise SystemExit('Owner stats launch verification failed: non-JSON response') from None
           buttons = launch.get('reply_markup', {}).get('inline_keyboard', [])
           if not buttons or buttons[0][0].get('web_app', {}).get('url') != origin + '/?owner=1':
               raise SystemExit('Runtime owner configuration does not match the manager account')
