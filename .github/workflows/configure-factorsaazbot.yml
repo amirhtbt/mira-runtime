@@ -18,6 +18,7 @@ jobs:
           STAGING_ORIGIN: ${{ secrets.STAGING_ORIGIN }}
           STAGING_TELEGRAM_BOT_TOKEN: ${{ secrets.STAGING_TELEGRAM_BOT_TOKEN }}
           STAGING_SESSION_PEPPER: ${{ secrets.STAGING_SESSION_PEPPER }}
+          STAGING_OWNER_TELEGRAM_USER_ID: ${{ secrets.STAGING_OWNER_TELEGRAM_USER_ID }}
         run: |
           python3 - <<'PY'
           import hashlib, hmac, json, os, urllib.error, urllib.parse, urllib.request
@@ -75,6 +76,37 @@ jobs:
           menu = {'type': 'web_app', 'text': 'بازکردن فاکتورساز', 'web_app': {'url': origin}}
           bot_api('setChatMenuButton', {'menu_button': json.dumps(menu, ensure_ascii=False)})
           bot_api('setMyCommands', {'commands': json.dumps([{'command': 'start', 'description': 'بازکردن فاکتورساز'}], ensure_ascii=False)})
+          owner_id = os.environ.get('STAGING_OWNER_TELEGRAM_USER_ID', '')
+          if not owner_id.isdigit() or int(owner_id) <= 0:
+              raise SystemExit('Owner account is not configured')
+          owner_scope = json.dumps({'type': 'chat', 'chat_id': int(owner_id)})
+          owner_commands = [
+              {'command': 'start', 'description': 'بازکردن فاکتورساز'},
+              {'command': 'stats', 'description': 'نمایش آمار کاربران و اسناد'},
+          ]
+          for language in ('', 'fa'):
+              bot_api('setMyCommands', {
+                  'scope': owner_scope,
+                  'language_code': language,
+                  'commands': json.dumps(owner_commands, ensure_ascii=False),
+              })
+              if bot_api('getMyCommands', {'scope': owner_scope, 'language_code': language}) != owner_commands:
+                  raise SystemExit('Owner-only stats command was not verified')
+          # The webhook returns a launch payload; this check sends no chat message.
+          update = {'message': {'chat': {'id': int(owner_id), 'type': 'private'},
+                    'from': {'id': int(owner_id), 'is_bot': False}, 'text': '/stats'}}
+          request = urllib.request.Request(
+              url, data=json.dumps(update).encode(), method='POST',
+              headers={'Content-Type': 'application/json', 'X-Telegram-Bot-Api-Secret-Token': secret})
+          try:
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  launch = json.load(response)
+          except (urllib.error.HTTPError, urllib.error.URLError, ValueError):
+              raise SystemExit('Owner stats launch verification failed') from None
+          buttons = launch.get('reply_markup', {}).get('inline_keyboard', [])
+          if not buttons or buttons[0][0].get('web_app', {}).get('url') != origin + '/?owner=1':
+              raise SystemExit('Runtime owner configuration does not match the manager account')
+          print('Owner-only stats command and dashboard launch verified')
           actual_menu = bot_api('getChatMenuButton')
           print('Menu verification:', json.dumps(actual_menu, ensure_ascii=False))
           if actual_menu.get('type') != 'web_app' or actual_menu.get('web_app', {}).get('url', '').rstrip('/') != origin:
