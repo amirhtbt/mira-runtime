@@ -1,0 +1,52 @@
+name: Audit bot migration
+on:
+  push:
+    branches: ['main']
+    paths: ['.github/workflows/audit-bot-migration.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read bot configuration and deployed client without mutations
+        env:
+          BOT_TOKEN: ${{ secrets.STAGING_TELEGRAM_BOT_TOKEN }}
+          OWNER_ID: ${{ secrets.STAGING_OWNER_TELEGRAM_USER_ID }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request, urllib.parse
+          token = os.environ['BOT_TOKEN']
+          def api(method, payload=None):
+              req = urllib.request.Request('https://api.telegram.org/bot' + token + '/' + method, data=urllib.parse.urlencode(payload or {}).encode())
+              try:
+                  with urllib.request.urlopen(req, timeout=25) as response:
+                      result = json.load(response)
+              except Exception:
+                  raise SystemExit('Bot API read failed: ' + method) from None
+              if not result.get('ok'):
+                  raise SystemExit('Bot API rejected read: ' + method)
+              return result['result']
+          me = api('getMe')
+          print('Bot identity:', json.dumps({key:me.get(key) for key in ['username','is_bot','has_main_web_app']}, ensure_ascii=False))
+          if me.get('username','').lower() != 'factorsaazbot':
+              raise SystemExit('Unexpected bot identity')
+          print('Default menu:', json.dumps(api('getChatMenuButton'), ensure_ascii=False))
+          owner = os.environ.get('OWNER_ID','')
+          if owner.isdigit():
+              print('Owner-specific menu:', json.dumps(api('getChatMenuButton', {'chat_id':owner}), ensure_ascii=False))
+          else:
+              print('Owner-specific menu: owner ID unavailable')
+          hook = api('getWebhookInfo')
+          print('Webhook:', json.dumps({key:hook.get(key) for key in ['url','pending_update_count','last_error_message']}, ensure_ascii=False))
+          origin = 'https://invoice-staging.box4u.co'
+          with urllib.request.urlopen(origin + '/', timeout=25) as response:
+              html = response.read().decode()
+              print('HTML status:',response.status)
+              print('CSP:',response.headers.get('Content-Security-Policy'))
+          expected = '/assets/index-dNWo1umg.js'
+          print('Same entry bundle as successful September 12 deployment:', expected in html)
+          with urllib.request.urlopen(origin + '/api/v1/health', timeout=25) as response:
+              print('Health:',response.read().decode())
+          PY
