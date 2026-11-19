@@ -1,18 +1,8 @@
-import { registerPlugin } from '@capacitor/core';
+import { offlineNativeFiles } from './offlineNativeFiles';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { documentPdfName, documentViewModel, paginateDocumentModel, renderDocumentPdf } from '../export/documentPdf';
 import { InvoiceTemplate } from '../templates/InvoiceTemplate';
 import type { LocalDocument } from './offlineStore';
-
-interface PdfFile {
-  name: string;
-  base64: string;
-}
-
-const nativePdf = registerPlugin<{
-  savePdf(file: PdfFile): Promise<{ saved: boolean }>;
-  sharePdf(file: PdfFile): Promise<void>;
-}>('OfflinePdf');
 
 function dataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -55,10 +45,10 @@ export function OfflinePdfActions({ doc }: { doc: LocalDocument }) {
       const blob = await renderDocumentPdf(nodes);
       const file = { name: documentPdfName(doc), base64: (await dataUrl(blob)).split(',')[1] };
       if (action === 'save') {
-        const { saved } = await nativePdf.savePdf(file);
+        const { saved } = await offlineNativeFiles.savePdf(file);
         setMessage(saved ? 'فایل PDF ذخیره شد.' : 'ذخیرهٔ فایل لغو شد.');
       } else {
-        await nativePdf.sharePdf(file);
+        await offlineNativeFiles.sharePdf(file);
         setMessage('منوی اشتراک‌گذاری باز شد.');
       }
     } catch {

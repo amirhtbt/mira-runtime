@@ -30,6 +30,16 @@ export interface LocalDraft {
   input: DraftInput;
 }
 
+export interface OfflineSnapshot {
+  profile?: OfflineProfile;
+  customers: CustomerProfile[];
+  documents: LocalDocument[];
+  drafts: LocalDraft[];
+  payments: { id: string; documentId: string; amount: string }[];
+}
+
+const backupStores = ['profile', 'customers', 'documents', 'drafts', 'payments'];
+
 const schemaVersion = 2;
 const shippingMethods = ['', 'pickup', 'snapp_box', 'snapp_car', 'snapp_van', 'post', 'tipax'];
 
@@ -132,6 +142,32 @@ export class OfflineStore {
         throw new RangeError('finalized_document_immutable');
       }
       await result(tx.objectStore('drafts').put(draft));
+    });
+  }
+
+  readSnapshot(): Promise<OfflineSnapshot> {
+    return this.transact(backupStores, 'readonly', async tx => {
+      const [profile, customers, documents, drafts, payments] = await Promise.all([
+        result(tx.objectStore('profile').get('current')),
+        result(tx.objectStore('customers').getAll()),
+        result(tx.objectStore('documents').getAll()),
+        result(tx.objectStore('drafts').getAll()),
+        result(tx.objectStore('payments').getAll()),
+      ]);
+      return { profile, customers, documents, drafts, payments };
+    });
+  }
+
+  async restoreSnapshot(snapshot: OfflineSnapshot) {
+    await this.transact([...backupStores, 'numbering'], 'readwrite', async tx => {
+      const counts = await Promise.all([...backupStores, 'numbering'].map(name => result(tx.objectStore(name).count())));
+      if (counts.some(count => count !== 0)) throw new RangeError('backup_target_not_empty');
+      const { profile, ...records } = snapshot;
+      if (profile) await result(tx.objectStore('profile').add(profile, 'current'));
+      for (const name of ['customers', 'documents', 'drafts', 'payments'] as const) {
+        const store = tx.objectStore(name);
+        for (const record of records[name]) await result(store.add(record));
+      }
     });
   }
 

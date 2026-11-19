@@ -7,6 +7,9 @@ import type { LocalDocument, LocalDraft, OfflineProfile, OfflineStore } from './
 const OfflinePdfActions = lazy(() => import('./OfflinePdfActions')
   .then(module => ({ default: module.OfflinePdfActions })));
 
+const OfflineBackupActions = lazy(() => import('./OfflineBackupActions')
+  .then(module => ({ default: module.OfflineBackupActions })));
+
 type Page = 'archive' | 'editor' | 'document' | 'settings';
 const statuses = { unpaid: 'تسویه‌نشده', partial: 'پرداخت بخشی', paid: 'تسویه‌شده' };
 const emptyItem = () => ({ title: '', quantityMilli: '1000', unitPriceBaseUnit: '', discountBaseUnit: '' });
@@ -297,7 +300,7 @@ export function OfflineApp({ store }: { store: OfflineStore }) {
       <button className="secondary-button" disabled={busy} onClick={() => edit(copyDocument(doc))}>کپی سند قبلی</button>
     </section>}
 
-    {page === 'settings' && <form noValidate onSubmit={e => {
+    {page === 'settings' && <><form noValidate onSubmit={e => {
       e.preventDefault();
       void run(async () => {
         await store.saveProfile(profile);
@@ -319,6 +322,10 @@ export function OfflineApp({ store }: { store: OfflineStore }) {
           onClick={() => setProfile(current => ({ ...current, logo: undefined }))}>حذف لوگو</button>}
         <button className="primary-button">ذخیرهٔ تنظیمات</button>
       </fieldset>
-    </form>}
+    </form>
+      <Suspense fallback={null}>
+        <OfflineBackupActions store={store} onRestore={refresh} />
+      </Suspense>
+    </>}
   </main>;
 }

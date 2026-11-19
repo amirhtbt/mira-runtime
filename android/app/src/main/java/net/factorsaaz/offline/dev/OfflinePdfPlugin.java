@@ -17,6 +17,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 @CapacitorPlugin(name = "OfflinePdf")
@@ -44,18 +45,40 @@ public class OfflinePdfPlugin extends Plugin {
     @PluginMethod
     public void savePdf(PluginCall call) {
         try {
-            Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT)
-                .addCategory(Intent.CATEGORY_OPENABLE)
-                .setType(MIME)
-                .putExtra(Intent.EXTRA_TITLE, fileName(call));
-            startActivityForResult(call, intent, "saveResult");
+            openSavePicker(call, MIME, fileName(call), "saveResult");
         } catch (RuntimeException error) {
             call.reject("pdf_picker_failed", error);
         }
     }
 
+    @PluginMethod
+    public void saveBackup(PluginCall call) {
+        try {
+            openSavePicker(call, "application/json", "factorsaaz-backup.json", "saveBackupResult");
+        } catch (RuntimeException error) {
+            call.reject("backup_picker_failed", error);
+        }
+    }
+
+    private void openSavePicker(PluginCall call, String mime, String name, String callback) {
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setType(mime)
+            .putExtra(Intent.EXTRA_TITLE, name);
+        startActivityForResult(call, intent, callback);
+    }
+
     @ActivityCallback
     private void saveResult(PluginCall call, ActivityResult result) {
+        finishSave(call, result, false);
+    }
+
+    @ActivityCallback
+    private void saveBackupResult(PluginCall call, ActivityResult result) {
+        finishSave(call, result, true);
+    }
+
+    private void finishSave(PluginCall call, ActivityResult result, boolean backup) {
         if (call == null) return;
         if (result.getResultCode() != Activity.RESULT_OK) {
             call.resolve(new JSObject().put("saved", false));
@@ -63,18 +86,21 @@ public class OfflinePdfPlugin extends Plugin {
         }
         Uri uri = result.getData() == null ? null : result.getData().getData();
         if (uri == null) {
-            call.reject("pdf_destination_missing");
+            call.reject("file_destination_missing");
             return;
         }
         try {
-            byte[] bytes = pdf(call);
+            byte[] bytes = backup ? call.getString("json", "").getBytes(StandardCharsets.UTF_8) : pdf(call);
+            if (backup && (bytes.length == 0 || bytes.length > 32 * 1024 * 1024)) {
+                throw new IllegalArgumentException("invalid_backup_size");
+            }
             try (OutputStream output = getContext().getContentResolver().openOutputStream(uri, "wt")) {
-                if (output == null) throw new IOException("pdf_destination_unavailable");
+                if (output == null) throw new IOException("file_destination_unavailable");
                 output.write(bytes);
             }
             call.resolve(new JSObject().put("saved", true));
         } catch (IOException | RuntimeException error) {
-            call.reject("pdf_write_failed", error);
+            call.reject("file_write_failed", error);
         }
     }
 
