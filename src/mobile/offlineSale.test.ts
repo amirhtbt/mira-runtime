@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import referenceCases from '../../tests/fixtures/offline-sale-money.json';
 import { calculateOfflineSale } from './offlineSale';
 
 describe('offline invoice arithmetic', () => {
@@ -19,4 +20,13 @@ describe('offline invoice arithmetic', () => {
   it('rejects a discount greater than its line', () => {
     expect(() => calculateOfflineSale([{...line, discountBaseUnit:'2000001'}])).toThrow('line_discount_exceeds_total');
   });
+});
+
+it.each(referenceCases)('matches PHP reference: $name', ({ items, taxRateBasisPoints, expected }) => {
+  expect(calculateOfflineSale(items, taxRateBasisPoints)).toEqual(expected);
+});
+
+it('calculates amounts without performing server line-title validation', () => {
+  const line = { title: '', quantityMilli: '1000', unitPriceBaseUnit: '1' };
+  expect(calculateOfflineSale([line]).total).toBe('1');
 });
