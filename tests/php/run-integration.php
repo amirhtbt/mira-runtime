@@ -129,3 +129,25 @@ Test::run('mobile sms challenge expires, limits requests and guesses, and consum
     $service->request($phone, $now + 86400);
     Test::equals(6, count($outbox));
 });
+
+Test::run('mobile SMS login issues a session for one stable business after each verified challenge', function () use ($pdo, $sessions, $now): void {
+    $outbox = [];
+    $secret = str_repeat('second-test-secret-', 3);
+    $phone = '09121234569';
+    $challenges = new \Tinv\Auth\MobileSmsChallengeService(
+        $pdo, $secret,
+        static function (string $phone, string $code) use (&$outbox): void { $outbox[] = $code; },
+    );
+    $auth = new \Tinv\Auth\MobileSmsAuthService($pdo, $challenges, $sessions, $secret);
+    $id = $challenges->request($phone, $now);
+    Test::equals(null, $auth->verify($phone, $id, 'wrong', $now + 1));
+    $first = $auth->verify($phone, $id, $outbox[0], $now + 2);
+    Test::assert($first !== null);
+    Test::equals($first->context->businessId, $sessions->authenticate($first->sessionToken, $now + 3)?->businessId);
+    Test::equals(null, $auth->verify($phone, $id, $outbox[0], $now + 4));
+
+    $second = $auth->verify($phone, $challenges->request($phone, $now + 60), $outbox[1], $now + 61);
+    Test::equals($first->context->userId, $second?->context->userId);
+    Test::equals($first->context->businessId, $second?->context->businessId);
+    Test::assert($first->sessionToken !== $second?->sessionToken);
+});

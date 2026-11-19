@@ -8,6 +8,9 @@ require is_file($runtimeBootstrap) ? $runtimeBootstrap : $sourceBootstrap;
 use Tinv\Auth\AuthService;
 use Tinv\Admin\OwnerAnalytics;
 use Tinv\Auth\InitDataValidator;
+use Tinv\Auth\IppanelPatternSms;
+use Tinv\Auth\MobileSmsAuthService;
+use Tinv\Auth\MobileSmsChallengeService;
 use Tinv\Auth\ReplayDetected;
 use Tinv\Auth\ValidationException;
 use Tinv\Config;
@@ -143,6 +146,50 @@ try {
         $originGuard->assertAllowed($_SERVER['HTTP_ORIGIN'] ?? null);
         if (($_SERVER['HTTP_X_TINV_REQUEST'] ?? '') !== 'miniapp') {
             Json::error('request_header_required', 'Missing Mini App request header', 400);
+        }
+    }
+
+    if ($method === 'POST' && in_array($path, ['/api/v1/auth/mobile/request', '/api/v1/auth/mobile/verify'], true)) {
+        header('Cache-Control: no-store');
+        $secret = Env::string('MOBILE_SMS_SECRET', '');
+        $key = Env::string('MOBILE_SMS_API_KEY', '');
+        $sender = Env::string('MOBILE_SMS_SENDER', '');
+        $pattern = Env::string('MOBILE_SMS_PATTERN', '');
+        $variable = Env::string('MOBILE_SMS_VARIABLE', '') ?: 'code';
+        if (strlen($secret) < 32 || $key === '' || $sender === '' || $pattern === '') {
+            Json::error('mobile_sms_disabled', 'Mobile SMS login is unavailable', 503);
+        }
+        $provider = new IppanelPatternSms($key, $sender, $pattern, $variable);
+        $challenges = new MobileSmsChallengeService($pdo, $secret, $provider->deliver(...));
+        $body = Json::body();
+        $phone = $body['phone'] ?? null;
+        if (!is_string($phone) || strlen($phone) > 80) Json::error('mobile_sms_number_invalid', 'Invalid mobile number', 422);
+        $ipScope = 'mobile-auth-ip:' . (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+        try {
+            if ($path === '/api/v1/auth/mobile/request') {
+                $rateLimiter->consume($ipScope, 'mobile_sms_send', 5);
+                $rateLimiter->consume('mobile-auth-global', 'mobile_sms_send', 60);
+                Json::ok(['challengeId' => $challenges->request($phone), 'expiresIn' => 300], 202);
+            }
+            $rateLimiter->consume($ipScope, 'mobile_sms_verify', 20);
+            $id = $body['challengeId'] ?? null;
+            $code = $body['code'] ?? null;
+            if (!is_string($id) || strlen($id) !== 36 || !is_string($code) || strlen($code) > 16) {
+                Json::error('mobile_sms_code_invalid', 'Invalid or expired code', 422);
+            }
+            $auth = new MobileSmsAuthService($pdo, $challenges, $sessions, $secret);
+            $result = $auth->verify($phone, $id, $code, null, (string)($_SERVER['HTTP_USER_AGENT'] ?? ''));
+            if (!$result) Json::error('mobile_sms_code_invalid', 'Invalid or expired code', 422);
+            $sessions->revoke((string)($_COOKIE[$cookieName] ?? ''));
+            $setCookie($result->sessionToken, $result->absoluteExpiresAt);
+            Json::ok(['userId' => $result->context->userId, 'businessId' => $result->context->businessId]);
+        } catch (\InvalidArgumentException) {
+            Json::error('mobile_sms_number_invalid', 'Invalid mobile number', 422);
+        } catch (\DomainException) {
+            Json::error('mobile_sms_rate_limited', 'Too many code requests', 429);
+        } catch (\RuntimeException $error) {
+            if ($error->getMessage() !== 'mobile_sms_delivery_failed') throw $error;
+            Json::error('mobile_sms_delivery_failed', 'SMS delivery unavailable', 503);
         }
     }
 
