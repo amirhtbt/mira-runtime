@@ -35,7 +35,7 @@ final readonly class TemporaryExportFileService
             throw new RuntimeException('temporary_export_type_invalid');
         }
 
-        $safeName = preg_replace('/[\x00-\x1F\x7F\\\/]+/u', '-', trim($fileName)) ?: '';
+        $safeName = preg_replace('~[\x00-\x1F\x7F\x5C/]+~u', '-', trim($fileName)) ?: '';
         $safeName = mb_substr($safeName, 0, 160, 'UTF-8');
         $extension = $allowed[$detectedMimeType];
         if ($safeName === '' || !str_ends_with(strtolower($safeName), '.' . $extension)) {

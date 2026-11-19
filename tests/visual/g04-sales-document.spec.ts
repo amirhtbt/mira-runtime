@@ -60,6 +60,6 @@ test('G06 creates a real A4 PDF download from an issued Persian invoice',async({
   await page.getByLabel('نام مشتری یا شرکت').fill('خریدار خروجی');await page.getByLabel('شماره تماس').fill('09120000002');await page.getByLabel('شرح کالا یا خدمت').fill('کالای فارسی');await page.getByLabel('مبلغ واحد (ریال) *').fill('10000000');
   await page.getByRole('button',{name:'ذخیره و ادامه برای صدور'}).click();await page.getByRole('button',{name:/تأیید پرداخت کامل/}).click();
   const [download]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:'دریافت PDF'}).click()]);
-  expect(download.suggestedFilename()).toMatch(/^invoice-INV-00001\.pdf$/);
+  expect(download.suggestedFilename()).toBe('فاکتور - خریدار خروجی.pdf');
   const path=await download.path();expect(path).not.toBeNull();
 });
