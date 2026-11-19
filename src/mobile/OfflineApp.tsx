@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type FormEvent } from 'react';
 import type { CustomerProfile, DraftInput } from '../api/client';
 import { calculateOfflineSale } from './offlineSale';
 import { defaultOfflineSettings } from './offlineSettings';
 import type { LocalDocument, LocalDraft, OfflineProfile, OfflineStore } from './offlineStore';
+
+const OfflinePdfActions = lazy(() => import('./OfflinePdfActions')
+  .then(module => ({ default: module.OfflinePdfActions })));
 
 type Page = 'archive' | 'editor' | 'document' | 'settings';
 const statuses = { unpaid: 'تسویه‌نشده', partial: 'پرداخت بخشی', paid: 'تسویه‌شده' };
@@ -288,6 +291,9 @@ export function OfflineApp({ store }: { store: OfflineStore }) {
         show(await store.convert(doc.id));
         await refresh();
       })}>صدور فاکتور نهایی</button>}
+      <Suspense fallback={<p role="status">در حال آماده‌سازی ابزار PDF…</p>}>
+        <OfflinePdfActions key={doc.id} doc={doc} />
+      </Suspense>
       <button className="secondary-button" disabled={busy} onClick={() => edit(copyDocument(doc))}>کپی سند قبلی</button>
     </section>}
 

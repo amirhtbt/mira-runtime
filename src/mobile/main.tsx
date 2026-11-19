@@ -3,6 +3,9 @@ import { OfflineApp } from './OfflineApp';
 import { openOfflineStore } from './offlineStore';
 import '../styles.css';
 import '../g04-sales.css';
+import '../g05-templates.css';
+import '../g05-template-theme.css';
+import '../g06-export.css';
 import './offline.css';
 
 const root = createRoot(document.getElementById('root')!);
