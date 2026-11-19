@@ -39,7 +39,8 @@ try {
         }
         header('Content-Type: application/pdf');
         header('Content-Length: ' . (string) $file['byteSize']);
-        header('Content-Disposition: attachment; filename="bahar-document.pdf"; filename*=UTF-8\'\'' . rawurlencode($file['fileName']));
+        $legacyName = preg_replace('~[\x00-\x1F\x7F\x22\x5C/;]+~u', '-', $file['fileName']) ?: 'bahar-document.pdf';
+        header('Content-Disposition: attachment; filename="' . $legacyName . '"; filename*=UTF-8\'\'' . rawurlencode($file['fileName']));
         echo $file['bytes'];
         exit;
     }

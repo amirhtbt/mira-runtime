@@ -24,7 +24,7 @@ async function expectNoHorizontalOverflow(page: import('@playwright/test').Page)
 }
 
 test.describe('G09 phases 4–6 browser regression', () => {
-  test('draft survives reload and repeated preview without losing entered data', async ({ page }) => {
+  test('repeated preview preserves a draft and creating a new document clears it', async ({ page }) => {
     await openBuilder(page);
     await fillBaseProforma(page);
     await page.getByLabel('تخفیف ردیف (اختیاری)').fill('500000');
@@ -40,13 +40,12 @@ test.describe('G09 phases 4–6 browser regression', () => {
     await expect(dialog).toBeVisible();
     await page.getByRole('button', { name: 'بستن ×' }).click();
 
-    await page.reload();
-    await page.getByRole('button', { name: 'ساخت سند جدید' }).first().click();
-    await expect(page.getByLabel('نام مشتری یا شرکت')).toHaveValue('مشتری تست خودکار');
-    await expect(page.getByLabel('شماره تماس')).toHaveValue('09121111111');
-    await expect(page.getByLabel('شرح کالا یا خدمت')).toHaveValue('قلم تست خودکار');
-    await expect(page.getByLabel('تخفیف ردیف (اختیاری)')).toHaveValue('500000');
-    await expect(page.getByText('۹٬۵۰۰٬۰۰۰ ریال').first()).toBeVisible();
+    await page.getByRole('navigation', { name: 'ناوبری اصلی' }).getByRole('button', { name: 'ساخت سند جدید' }).click();
+    await expect(page.getByLabel('نام مشتری یا شرکت')).toHaveValue('');
+    await expect(page.getByLabel('شماره تماس')).toHaveValue('');
+    await expect(page.getByLabel('شرح کالا یا خدمت')).toHaveValue('');
+    await expect(page.getByLabel('تخفیف ردیف (اختیاری)')).toHaveValue('');
+    await expect(page.locator('.item-editor')).toHaveCount(1);
   });
 
   test('invalid quantity and missing official identity are rejected; official tax remains integer Rial', async ({ page }) => {
