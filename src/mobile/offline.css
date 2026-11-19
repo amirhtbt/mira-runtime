@@ -1,0 +1,20 @@
+.offline-app {
+  max-width: 46rem;
+  margin: auto;
+  padding: max(1rem, env(safe-area-inset-top)) 1rem max(2rem, env(safe-area-inset-bottom));
+}
+.offline-header, .offline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .75rem;
+  margin-block-end: 1rem;
+}
+.offline-header h1 { margin: 0; font-size: 1.4rem; flex: 1; }
+.offline-section { display: grid; gap: .75rem; margin-block: .85rem; min-inline-size: 0; }
+.offline-section h2 { margin: 0; font-size: 1.1rem; }
+.offline-section legend { padding-inline: .4rem; font-weight: 700; }
+.offline-section label { display: grid; gap: .35rem; }
+.offline-section .offline-checkbox { display: flex; align-items: center; }
+.offline-section bdi { overflow-wrap: anywhere; }
+.offline-section .offline-archive-entry { display: grid; gap: .3rem; text-align: start; }

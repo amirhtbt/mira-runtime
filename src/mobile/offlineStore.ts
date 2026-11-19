@@ -25,7 +25,12 @@ interface Numbering {
   last: Record<DocumentType, number>;
 }
 
-const schemaVersion = 1;
+export interface LocalDraft {
+  id: string;
+  input: DraftInput;
+}
+
+const schemaVersion = 2;
 const shippingMethods = ['', 'pickup', 'snapp_box', 'snapp_car', 'snapp_van', 'post', 'tipax'];
 
 function result<T>(request: IDBRequest<T>): Promise<T> {
@@ -51,8 +56,10 @@ function customerMobile(value: string) {
 
 export async function openOfflineStore(name = 'factorsaaz-offline') {
   const request = indexedDB.open(name, schemaVersion);
-  request.onupgradeneeded = () => {
+  request.onupgradeneeded = event => {
     const db = request.result;
+    if (event.oldVersion < 2) db.createObjectStore('drafts', { keyPath: 'id' });
+    if (event.oldVersion !== 0) return;
     db.createObjectStore('profile');
     db.createObjectStore('customers', { keyPath: 'id' });
     db.createObjectStore('numbering');
@@ -115,8 +122,21 @@ export class OfflineStore {
     });
   }
 
+  listDrafts(): Promise<LocalDraft[]> {
+    return this.transact(['drafts'], 'readonly', tx => result(tx.objectStore('drafts').getAll()));
+  }
+
+  async saveDraft(draft: LocalDraft) {
+    await this.transact(['drafts', 'documents'], 'readwrite', async tx => {
+      if (await result(tx.objectStore('documents').getKey(draft.id))) {
+        throw new RangeError('finalized_document_immutable');
+      }
+      await result(tx.objectStore('drafts').put(draft));
+    });
+  }
+
   async issue(id: string, input: DraftInput, confirmPaid = false, now = new Date()): Promise<LocalDocument> {
-    return this.transact(['documents', 'profile', 'customers', 'numbering'], 'readwrite', async tx => {
+    return this.transact(['documents', 'profile', 'customers', 'numbering', 'drafts'], 'readwrite', async tx => {
       const documents = tx.objectStore('documents');
       const issued: LocalDocument | undefined = await result(documents.get(id));
       if (issued) return issued;
@@ -184,6 +204,7 @@ export class OfflineStore {
         } satisfies CustomerProfile));
       }
       await result(documents.add(document));
+      await result(tx.objectStore('drafts').delete(id));
       return document;
     });
   }
