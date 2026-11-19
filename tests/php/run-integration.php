@@ -98,3 +98,33 @@ Test::run('G08 rate limiter is atomic, resettable and stores no raw scope', func
 });
 
 require __DIR__ . '/ExportDeliveryChecks.php';
+
+Test::run('mobile sms challenge expires, limits requests and guesses, and consumes a correct code once', function () use ($pdo, $now): void {
+    $pdo->exec('DELETE FROM mobile_sms_challenges');
+    $outbox = [];
+    $service = new \Tinv\Auth\MobileSmsChallengeService(
+        $pdo, str_repeat('test-secret-', 4),
+        static function (string $phone, string $code) use (&$outbox): void { $outbox[] = [$phone, $code]; },
+    );
+    $phone = '09121234567';
+    $id = $service->request('+۹۸ ۹۱۲ ۱۲۳ ۴۵۶۷', $now);
+    Test::equals($phone, $outbox[0][0]);
+    Test::throws(fn() => $service->request($phone, $now + 59), DomainException::class);
+    Test::equals(null, $service->consume('09121234568', $id, $outbox[0][1], $now + 1));
+    Test::equals($phone, $service->consume($phone, $id, $outbox[0][1], $now + 1));
+    Test::equals(null, $service->consume($phone, $id, $outbox[0][1], $now + 2));
+
+    $id = $service->request($phone, $now + 60);
+    for ($attempt = 0; $attempt < 5; $attempt++) {
+        Test::equals(null, $service->consume($phone, $id, 'wrong', $now + 61));
+    }
+    Test::equals(null, $service->consume($phone, $id, $outbox[1][1], $now + 62));
+
+    $id = $service->request($phone, $now + 120);
+    Test::equals(null, $service->consume($phone, $id, $outbox[2][1], $now + 420));
+    $service->request($phone, $now + 180);
+    $service->request($phone, $now + 240);
+    Test::throws(fn() => $service->request($phone, $now + 300), DomainException::class);
+    $service->request($phone, $now + 86400);
+    Test::equals(6, count($outbox));
+});
