@@ -4,6 +4,7 @@ import { AppFrame, Home, type AppTab } from '../AppFrame';
 import { DocumentsPage } from '../sales/DocumentsPage';
 import { offlineHistorySource } from './offlineHistorySource';
 import { SettingsPage } from '../settings/SettingsPage';
+import { MobileAccountPanel } from './MobileAccountPanel';
 import { TemplatesPage } from '../templates/TemplatesPage';
 import { offlineSettingsSource } from './offlineSettingsSource';
 import { calculateOfflineSale } from './offlineSale';
@@ -343,6 +344,7 @@ export function OfflineApp({ store }: { store: OfflineStore }) {
         <p>اطلاعات کسب‌وکار و پیش‌فرض‌های سند را یک‌بار تنظیم کنید.</p>
       </header>
       <SettingsPage key={settingsRevision} source={settings.source} />
+      <MobileAccountPanel />
       <Suspense fallback={null}>
         <OfflineBackupActions store={store} onRestore={async () => {
           await refresh();

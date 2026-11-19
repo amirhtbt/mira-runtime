@@ -47,6 +47,8 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm test -- src/mobile
       - run: npm run android:sync
+        env:
+          VITE_MOBILE_API_ORIGIN: ${{ vars.ANDROID_API_ORIGIN }}
       - run: ./gradlew --no-daemon assembleDebug
         working-directory: android
       - name: Verify APK installs alongside the original debug package
