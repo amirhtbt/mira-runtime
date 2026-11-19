@@ -1,5 +1,11 @@
-import { lazy, Suspense, useEffect, useRef, useState, type FormEvent } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import type { CustomerProfile, DraftInput } from '../api/client';
+import { AppFrame, Home, type AppTab } from '../AppFrame';
+import { DocumentsPage } from '../sales/DocumentsPage';
+import { offlineHistorySource } from './offlineHistorySource';
+import { SettingsPage } from '../settings/SettingsPage';
+import { TemplatesPage } from '../templates/TemplatesPage';
+import { offlineSettingsSource } from './offlineSettingsSource';
 import { calculateOfflineSale } from './offlineSale';
 import { defaultOfflineSettings } from './offlineSettings';
 import type { LocalDocument, LocalDraft, OfflineProfile, OfflineStore } from './offlineStore';
@@ -10,7 +16,7 @@ const OfflinePdfActions = lazy(() => import('./OfflinePdfActions')
 const OfflineBackupActions = lazy(() => import('./OfflineBackupActions')
   .then(module => ({ default: module.OfflineBackupActions })));
 
-type Page = 'archive' | 'editor' | 'document' | 'settings';
+type Page = AppTab | 'editor' | 'document';
 const statuses = { unpaid: 'تسویه‌نشده', partial: 'پرداخت بخشی', paid: 'تسویه‌شده' };
 const emptyItem = () => ({ title: '', quantityMilli: '1000', unitPriceBaseUnit: '', discountBaseUnit: '' });
 const amount = (value: string) => value.replace(/[۰-۹]/g, c => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(c)))
@@ -18,12 +24,12 @@ const amount = (value: string) => value.replace(/[۰-۹]/g, c => String('۰۱۲�
   .replace(/[٬,\s]/g, '').replace(/^0+(?=\d)/, '');
 const rials = (value: string) => BigInt(value).toLocaleString('fa-IR') + ' ریال';
 
-function newDraft(): LocalDraft {
+function newDraft(validityDays = 7): LocalDraft {
   return {
     id: crypto.randomUUID(),
     input: {
       documentType: 'proforma', customer: { displayName: '', phone: '' }, isOfficial: false,
-      validityDays: 7, items: [emptyItem()],
+      validityDays, items: [emptyItem()],
     },
   };
 }
@@ -65,8 +71,9 @@ const messages: Record<string, string> = {
 };
 
 export function OfflineApp({ store }: { store: OfflineStore }) {
-  const [page, setPage] = useState<Page>('archive');
-  const [draft, setDraft] = useState(newDraft);
+  const [page, setPage] = useState<Page>('home');
+  const [draft, setDraft] = useState(() => newDraft());
+  const [settingsRevision, setSettingsRevision] = useState(0);
   const [quantities, setQuantities] = useState(['1']);
   const [doc, setDoc] = useState<LocalDocument>();
   const [documents, setDocuments] = useState<LocalDocument[]>([]);
@@ -81,19 +88,22 @@ export function OfflineApp({ store }: { store: OfflineStore }) {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     const [nextDocuments, nextDrafts, nextCustomers, nextProfile] = await Promise.all([
       store.listDocuments(), store.listDrafts(), store.listCustomers(), store.getProfile(),
     ]);
     setDocuments(nextDocuments);
     setDrafts(nextDrafts);
     setCustomers(nextCustomers);
-    if (nextProfile) setProfile(nextProfile);
-  }
+    setProfile(nextProfile ?? { settings: defaultOfflineSettings() });
+  }, [store]);
+  const history = useMemo(() => offlineHistorySource(store, refresh), [store, refresh]);
+  const settings = useMemo(() => offlineSettingsSource(store, refresh), [store, refresh]);
+  useEffect(() => () => settings.dispose(), [settings]);
 
   useEffect(() => {
     void refresh().catch(() => setError('خواندن اطلاعات گوشی انجام نشد.'));
-  }, [store]);
+  }, [refresh]);
 
   async function run(operation: () => Promise<void>) {
     if (running.current) return;
@@ -143,43 +153,43 @@ export function OfflineApp({ store }: { store: OfflineStore }) {
     ...input,
     items: input.items.map(item => ({ ...item, discountBaseUnit: item.discountBaseUnit || '0' })),
   });
-  let total: string | undefined;
+  let totals: ReturnType<typeof calculateOfflineSale> | undefined;
   try {
-    total = calculateOfflineSale(prepared().items, input.isOfficial ? profile.settings.financial.taxRateBasisPoints : 0).total;
+    totals = calculateOfflineSale(prepared().items, input.isOfficial ? profile.settings.financial.taxRateBasisPoints : 0);
   } catch { /* Incomplete rows have no total yet. */ }
 
-  return <main className="page sales-page offline-app" dir="rtl">
-    <header className="offline-header">
-      <h1>فاکتورساز بهار</h1>
-      {page !== 'archive' && <button className="secondary-button" type="button" disabled={busy}
-        onClick={() => go('archive')}>بازگشت به آرشیو</button>}
-    </header>
+  const creating = page === 'editor' || page === 'document';
+  const businessName = profile.settings.seller.displayName || profile.settings.seller.businessName;
+  return <AppFrame theme="light" platform="android" tab={creating ? 'invoices' : page}
+    creating={creating} contentKey={page} subtitle="فاکتورساز اندروید" badge="آفلاین"
+    onTab={tab => { if (!busy) go(tab); }} onCreate={() => { if (!busy) edit(newDraft(profile.settings.document.validityDays)); }}>
     {error && <p role="alert" className="sales-message">{error}</p>}
-    {notice && <p role="status">{notice}</p>}
-
-    {page === 'archive' && <>
-      <div className="offline-actions">
-        <button className="primary-button" onClick={() => edit(newDraft())}>سند جدید</button>
-        <button className="secondary-button" onClick={() => go('settings')}>تنظیمات فروشنده</button>
-      </div>
-      {drafts.length > 0 && <section className="sales-card offline-section">
-        <h2>پیش‌نویس‌ها</h2>
-        {drafts.map(item => <button className="secondary-button" key={item.id} onClick={() => edit(item)}>
-          ادامهٔ پیش‌نویس · {item.input.customer.displayName || 'بدون نام مشتری'}
-        </button>)}
-      </section>}
-      <section className="sales-card offline-section">
-        <h2>آرشیو روی گوشی</h2>
-        {documents.length === 0 && <p>هنوز سندی صادر نشده است.</p>}
-        {documents.map(item => <button className="secondary-button offline-archive-entry" key={item.id} onClick={() => show(item)}>
-          <strong>{item.customerName}</strong>
-          <bdi>{item.documentNumber}</bdi>
-          <span>{rials(item.grandTotalBaseUnit)} · {statuses[item.settlementStatus]}</span>
-        </button>)}
-      </section>
+    {notice && <p role="status" className="page">{notice}</p>}
+    {page === 'home' && <Home data={{
+      businessName, settingsComplete: Boolean(businessName), hasDocuments: documents.length > 0,
+      recentInvoices: documents.filter(item => !item.archivedAt).slice(0, 3).map(item => ({
+        id: item.documentNumber, documentId: item.id, documentType: item.documentType,
+        customer: item.customerName, amount: rials(item.grandTotalBaseUnit),
+        date: item.issueDate ?? '', status: 'final',
+      })),
+    }} onCreate={() => edit(newDraft(profile.settings.document.validityDays))} onOpen={item => {
+      const selected = documents.find(doc => doc.id === item.documentId);
+      if (selected) show(selected);
+    }} />}
+    {page === 'invoices' && <>
+      <DocumentsPage source={history} onOpen={item => show(item as LocalDocument)}
+        onCopy={item => edit(copyDocument(item as LocalDocument))} />
+      {drafts.length > 0 && <div className="page">
+        <section className="sales-card offline-section">
+          <h2>پیش‌نویس‌ها</h2>
+          {drafts.map(item => <button className="secondary-button" key={item.id} onClick={() => edit(item)}>
+            ادامهٔ پیش‌نویس · {item.input.customer.displayName || 'بدون نام مشتری'}
+          </button>)}
+        </section>
+      </div>}
     </>}
 
-    {page === 'editor' && <form noValidate onSubmit={(event: FormEvent) => {
+    {page === 'editor' && <form className="page sales-page builder-page" noValidate onSubmit={(event: FormEvent) => {
       event.preventDefault();
       void run(async () => {
         const issued = await store.issue(draft.id, prepared(), paid);
@@ -187,14 +197,15 @@ export function OfflineApp({ store }: { store: OfflineStore }) {
         await refresh();
       });
     }}>
-      <fieldset disabled={busy} className="sales-card offline-section">
-        <legend>مشخصات سند</legend>
-        <label>نوع سند<select value={input.documentType} onChange={e => {
-          patch({ documentType: e.target.value === 'invoice' ? 'invoice' : 'proforma' });
-          setPaid(false);
-        }}>
-          <option value="proforma">پیش‌فاکتور</option><option value="invoice">فاکتور فروش</option>
-        </select></label>
+      <fieldset disabled={busy} className="sales-card builder-section offline-section">
+        <div className="doc-type-switch" aria-label="نوع سند">
+          {(['proforma', 'invoice'] as const).map(type => <button type="button" key={type}
+            className={input.documentType === type ? 'active' : ''}
+            aria-pressed={input.documentType === type} onClick={() => {
+              patch({ documentType: type });
+              setPaid(false);
+            }}>{type === 'proforma' ? 'پیش‌فاکتور' : 'فاکتور فروش'}</button>)}
+        </div>
         {customers.length > 0 && <label>انتخاب از مشتریان ذخیره‌شده<select value={input.customer.id ?? ''}
           onChange={e => {
             const customer = customers.find(item => item.id === e.target.value);
@@ -210,23 +221,31 @@ export function OfflineApp({ store }: { store: OfflineStore }) {
         <label>شماره همراه<input dir="ltr" inputMode="tel" value={input.customer.phone} onChange={e => patch({
           customer: { ...input.customer, id: undefined, phone: e.target.value },
         })} /></label>
-        <label className="offline-checkbox"><input type="checkbox" checked={input.isOfficial}
-          onChange={e => patch({ isOfficial: e.target.checked })} /> سند رسمی</label>
+        <label className="official-toggle"><span><strong>سند رسمی</strong><small>در سند رسمی مالیات اعمال می‌شود.</small></span>
+          <input type="checkbox" checked={input.isOfficial} onChange={e => patch({ isOfficial: e.target.checked })} /></label>
         {input.isOfficial && <label>شناسهٔ ملی مشتری<input inputMode="numeric" value={input.customer.nationalId ?? ''}
           onChange={e => patch({ customer: { ...input.customer, nationalId: e.target.value } })} /></label>}
-        <label>نشانی مشتری<input value={input.address ?? ''} onChange={e => patch({ address: e.target.value })} /></label>
-        <label>شیوهٔ ارسال<select value={input.shippingMethod ?? ''} onChange={e => patch({ shippingMethod: e.target.value })}>
+        <details><summary>آدرس (اختیاری)</summary><textarea aria-label="نشانی مشتری" rows={3}
+          value={input.address ?? ''} onChange={e => patch({ address: e.target.value })} /></details>
+        <details><summary>شیوه ارسال (اختیاری)</summary><select aria-label="شیوهٔ ارسال" value={input.shippingMethod ?? ''} onChange={e => patch({ shippingMethod: e.target.value })}>
           <option value="">انتخاب نشده</option><option value="pickup">تحویل حضوری</option>
           <option value="snapp_box">پیک اسنپ‌باکس</option><option value="snapp_car">ماشین اسنپ</option>
           <option value="snapp_van">وانت اسنپ</option><option value="post">پست</option><option value="tipax">تیپاکس</option>
-        </select></label>
-        {input.documentType === 'proforma' && <label>اعتبار (روز)<input type="number" min="0" max="365"
-          value={input.validityDays ?? ''} onChange={e => patch({ validityDays: e.target.value === '' ? null : Number(e.target.value) })} /></label>}
-        <label>توضیحات<textarea value={input.notes ?? ''} onChange={e => patch({ notes: e.target.value })} /></label>
+        </select></details>
+        {input.documentType === 'proforma' && <details><summary>مدت اعتبار (اختیاری)</summary><input aria-label="مدت اعتبار" type="number" min="0" max="365"
+          value={input.validityDays ?? ''} onChange={e => patch({ validityDays: e.target.value === '' ? null : Number(e.target.value) })} /></details>}
+        <details><summary>توضیحات (اختیاری)</summary><textarea aria-label="توضیحات"
+          value={input.notes ?? ''} onChange={e => patch({ notes: e.target.value })} /></details>
       </fieldset>
-      <fieldset disabled={busy} className="sales-card offline-section">
-        <legend>اقلام سند</legend>
-        {input.items.map((item, index) => <div className="item-editor offline-section" key={index}>
+      <fieldset disabled={busy} className="sales-card builder-section offline-section">
+        <div className="builder-title"><h2>اقلام سند</h2><span>{input.items.length.toLocaleString('fa-IR')} قلم</span></div>
+        {input.items.map((item, index) => <article className="item-editor" key={index}>
+          <div className="item-toolbar"><b>ردیف {(index + 1).toLocaleString('fa-IR')}</b>
+            {input.items.length > 1 && <span><button type="button" onClick={() => {
+              setQuantities(current => current.filter((_, i) => index !== i));
+              patch({ items: input.items.filter((_, i) => index !== i) });
+            }}>حذف</button></span>}
+          </div>
           <label>شرح کالا یا خدمت<input value={item.title} onChange={e => updateItem(index, { title: e.target.value })} /></label>
           <div className="item-numbers">
             <label>تعداد<input inputMode="decimal" value={quantities[index] ?? ''}
@@ -243,17 +262,29 @@ export function OfflineApp({ store }: { store: OfflineStore }) {
           </div>
           <label>تخفیف ردیف (ریال)<input inputMode="numeric" value={item.discountBaseUnit ?? ''}
             onChange={e => updateItem(index, { discountBaseUnit: amount(e.target.value) })} /></label>
-          {input.items.length > 1 && <button type="button" className="secondary-button"
-            onClick={() => {
-              setQuantities(current => current.filter((_, i) => index !== i));
-              patch({ items: input.items.filter((_, i) => index !== i) });
-            }}>حذف ردیف</button>}
-        </div>)}
-        <button type="button" className="secondary-button" onClick={() => {
+        </article>)}
+        <button type="button" className="add-item" onClick={() => {
           setQuantities(current => [...current, '1']);
           patch({ items: [...input.items, emptyItem()] });
-        }}>افزودن ردیف</button>
-        {total !== undefined && <output>مبلغ نهایی {rials(total)}</output>}
+        }}>+ افزودن قلم جدید</button>
+        <div className="builder-totals">
+          <span>جمع اقلام <b>{rials(totals?.subtotal ?? '0')}</b></span>
+          {totals && totals.discount !== '0' && <span>تخفیف ردیف‌ها <b>{rials(totals.discount)}</b></span>}
+          <span>مالیات بر ارزش افزوده <b>{rials(totals?.tax ?? '0')}</b></span>
+          <strong>مبلغ نهایی <b>{rials(totals?.total ?? '0')}</b></strong>
+        </div>
+      </fieldset>
+      <fieldset disabled={busy} className="sales-card builder-section preview-section offline-section">
+        <div className="auto-meta"><span>شماره سند: خودکار</span><span>تاریخ صدور: خودکار</span></div>
+        <h2>پیش‌نمایش سند</h2>
+        <div className="document-mini">
+          <header><b>{input.documentType === 'invoice' ? 'فاکتور فروش' : 'پیش‌فاکتور'}</b><span>{input.customer.displayName || 'نام مشتری'}</span></header>
+          <table><thead><tr><th>شرح</th><th>تعداد</th><th>مبلغ</th></tr></thead>
+            <tbody>{input.items.map((item, index) => item.title && <tr key={index}><td>{item.title}</td>
+              <td>{quantities[index]}</td><td>{rials(totals?.items[index]?.lineTotalBaseUnit ?? '0')}</td></tr>)}</tbody>
+          </table>
+          <footer>جمع نهایی: {rials(totals?.total ?? '0')}</footer>
+        </div>
         {input.documentType === 'invoice' && <label className="offline-checkbox"><input type="checkbox"
           checked={paid} onChange={e => setPaid(e.target.checked)} /> کل مبلغ را دریافت کرده‌ام</label>}
         <div className="offline-actions">
@@ -261,23 +292,29 @@ export function OfflineApp({ store }: { store: OfflineStore }) {
           <button type="button" className="secondary-button" onClick={() => void run(async () => {
             await store.saveDraft(draft);
             await refresh();
-            go('archive');
+            go('invoices');
             setNotice('پیش‌نویس روی گوشی ذخیره شد.');
           })}>ذخیرهٔ پیش‌نویس</button>
         </div>
       </fieldset>
     </form>}
 
-    {page === 'document' && doc && <section className="sales-card offline-section">
+    {page === 'document' && doc && <div className="page sales-page">
+      <button className="sales-back" type="button" disabled={busy} onClick={() => go('invoices')}>بازگشت به آرشیو</button>
+      <section className="sales-card document-summary offline-section">
       <h2>{doc.documentType === 'invoice' ? 'فاکتور فروش' : 'پیش‌فاکتور'} · {doc.customerName}</h2>
       <bdi>{doc.documentNumber}</bdi>
       <span>تاریخ صدور {doc.issueDate}{doc.validUntil && ' · معتبر تا ' + doc.validUntil}</span>
-      <strong>{rials(doc.grandTotalBaseUnit)} · {statuses[doc.settlementStatus]}</strong>
+      <div className="money-row"><span>مبلغ کل</span><strong>{rials(doc.grandTotalBaseUnit)}</strong></div>
+      <div className="document-badge">{statuses[doc.settlementStatus]}</div>
       {doc.items.map(item => <div className="money-row" key={item.position}>
         <span>{item.title} × {quantityText(String(item.quantityMilli))}</span>
         <b>{rials(String(item.lineTotalBaseUnit))}</b>
       </div>)}
-      {doc.documentType === 'proforma' && <p>مانده {rials(doc.remainingAmountBaseUnit)}</p>}
+      {doc.documentType === 'proforma' && <div className="balance-grid">
+        <div><span>پرداخت‌شده</span><strong>{rials(doc.paidAmountBaseUnit)}</strong></div>
+        <div><span>مانده</span><strong>{rials(doc.remainingAmountBaseUnit)}</strong></div>
+      </div>}
       {doc.documentType === 'proforma' && !doc.canIssueFinalInvoice && <div className="offline-actions">
         <label>مبلغ پرداخت (ریال)<input inputMode="numeric" value={payment} disabled={busy} onChange={e => {
           setPayment(amount(e.target.value));
@@ -298,34 +335,20 @@ export function OfflineApp({ store }: { store: OfflineStore }) {
         <OfflinePdfActions key={doc.id} doc={doc} />
       </Suspense>
       <button className="secondary-button" disabled={busy} onClick={() => edit(copyDocument(doc))}>کپی سند قبلی</button>
-    </section>}
+    </section></div>}
 
-    {page === 'settings' && <><form noValidate onSubmit={e => {
-      e.preventDefault();
-      void run(async () => {
-        await store.saveProfile(profile);
-        setNotice('تنظیمات روی گوشی ذخیره شدند.');
-      });
-    }}>
-      <fieldset disabled={busy} className="sales-card offline-section">
-        <legend>تنظیمات فروشنده</legend>
-        <label>نام کسب‌وکار<input value={profile.settings.seller.businessName} onChange={e => {
-          const businessName = e.target.value;
-          setProfile(current => ({ ...current, settings: {
-            ...current.settings, seller: { ...current.settings.seller, businessName },
-          } }));
-        }} /></label>
-        <label>لوگو<input type="file" accept="image/png,image/jpeg,image/webp"
-          onChange={e => { const logo = e.target.files?.[0]; if (logo) setProfile(current => ({ ...current, logo })); }} />
-        </label>
-        {profile.logo && <button type="button" className="secondary-button"
-          onClick={() => setProfile(current => ({ ...current, logo: undefined }))}>حذف لوگو</button>}
-        <button className="primary-button">ذخیرهٔ تنظیمات</button>
-      </fieldset>
-    </form>
+    {page === 'templates' && <TemplatesPage source={settings.source} />}
+    {page === 'settings' && <div className="page settings-shell">
+      <header className="page-header"><span>شخصی‌سازی</span><h1>تنظیمات</h1>
+        <p>اطلاعات کسب‌وکار و پیش‌فرض‌های سند را یک‌بار تنظیم کنید.</p>
+      </header>
+      <SettingsPage key={settingsRevision} source={settings.source} />
       <Suspense fallback={null}>
-        <OfflineBackupActions store={store} onRestore={refresh} />
+        <OfflineBackupActions store={store} onRestore={async () => {
+          await refresh();
+          setSettingsRevision(revision => revision + 1);
+        }} />
       </Suspense>
-    </>}
-  </main>;
+    </div>}
+  </AppFrame>;
 }

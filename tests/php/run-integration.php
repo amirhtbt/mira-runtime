@@ -109,6 +109,7 @@ Test::run('mobile sms challenge expires, limits requests and guesses, and consum
     $phone = '09121234567';
     $id = $service->request('+۹۸ ۹۱۲ ۱۲۳ ۴۵۶۷', $now);
     Test::equals($phone, $outbox[0][0]);
+    Test::assert(preg_match('/^[0-9]{4}$/D', $outbox[0][1]) === 1);
     Test::throws(fn() => $service->request($phone, $now + 59), DomainException::class);
     Test::equals(null, $service->consume('09121234568', $id, $outbox[0][1], $now + 1));
     Test::equals($phone, $service->consume($phone, $id, $outbox[0][1], $now + 1));

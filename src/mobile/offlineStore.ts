@@ -132,6 +132,17 @@ export class OfflineStore {
     });
   }
 
+  async setArchived(id: string, archived: boolean): Promise<LocalDocument> {
+    return this.transact(['documents'], 'readwrite', async tx => {
+      const store = tx.objectStore('documents');
+      const document: LocalDocument | undefined = await result(store.get(id));
+      if (!document) throw new RangeError('document_not_found');
+      const updated = { ...document, archivedAt: archived ? new Date().toISOString() : null };
+      await result(store.put(updated));
+      return updated;
+    });
+  }
+
   listDrafts(): Promise<LocalDraft[]> {
     return this.transact(['drafts'], 'readonly', tx => result(tx.objectStore('drafts').getAll()));
   }
@@ -302,7 +313,7 @@ export class OfflineStore {
         id: crypto.randomUUID(), documentType: 'invoice', sourceDocumentId: source.id,
         documentNumber: await this.nextNumber(tx, 'invoice', source.settingsSnapshot),
         version: 1, validityDays: null, ...offlineDates(now, null), issuedAt: now.toISOString(),
-        canIssueFinalInvoice: false,
+        canIssueFinalInvoice: false, archivedAt: null,
       };
       await result(documents.add(converted));
       return converted;

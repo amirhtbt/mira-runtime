@@ -31,7 +31,7 @@ final readonly class MobileSmsChallengeService
         $phone = self::normalizeMobile($number);
         $key = $this->phoneKey($phone);
         $id = Uuid::v4();
-        $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        $code = str_pad((string)random_int(0, 9999), 4, '0', STR_PAD_LEFT);
 
         $this->pdo->beginTransaction();
         try {
@@ -87,7 +87,7 @@ final readonly class MobileSmsChallengeService
             $row = $this->lock($key);
             $eligible = $row && $row['challenge_id'] === $challengeId && is_string($row['code_hash'])
                 && $now < (int)$row['expires_at'] && (int)$row['attempt_count'] < self::MAX_ATTEMPTS;
-            $valid = $eligible && preg_match('/^[0-9]{6}$/D', $code)
+            $valid = $eligible && preg_match('/^[0-9]{4}$/D', $code)
                 && hash_equals($row['code_hash'], $this->codeHash($key, $challengeId, $code));
             if ($eligible) {
                 $this->pdo->prepare(
