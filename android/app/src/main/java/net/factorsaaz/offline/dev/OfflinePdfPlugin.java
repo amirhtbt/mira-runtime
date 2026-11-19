@@ -94,8 +94,8 @@ public class OfflinePdfPlugin extends Plugin {
             Uri uri = FileProvider.getUriForFile(getContext(), getContext().getPackageName() + ".fileprovider", file);
             Intent send = new Intent(Intent.ACTION_SEND).setType(MIME)
                 .putExtra(Intent.EXTRA_STREAM, uri)
-                .setClipData(ClipData.newRawUri(name, uri))
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            send.setClipData(ClipData.newRawUri(name, uri));
             getActivity().startActivity(Intent.createChooser(send, null));
             call.resolve();
         } catch (IOException | RuntimeException error) {
