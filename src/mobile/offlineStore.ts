@@ -40,7 +40,13 @@ export interface OfflineSnapshot {
 
 const backupStores = ['profile', 'customers', 'documents', 'drafts', 'payments'];
 
-const schemaVersion = 2;
+export interface PendingSyncDocument {
+  documentId: string;
+  sequence: string;
+  document: LocalDocument;
+}
+
+const schemaVersion = 3;
 const shippingMethods = ['', 'pickup', 'snapp_box', 'snapp_car', 'snapp_van', 'post', 'tipax'];
 
 function result<T>(request: IDBRequest<T>): Promise<T> {
@@ -68,6 +74,10 @@ export async function openOfflineStore(name = 'factorsaaz-offline') {
   const request = indexedDB.open(name, schemaVersion);
   request.onupgradeneeded = event => {
     const db = request.result;
+    if (event.oldVersion < 3) {
+      db.createObjectStore('syncAccount');
+      db.createObjectStore('syncOutbox', { keyPath: 'documentId' });
+    }
     if (event.oldVersion < 2) db.createObjectStore('drafts', { keyPath: 'id' });
     if (event.oldVersion !== 0) return;
     db.createObjectStore('profile');
@@ -109,6 +119,49 @@ export class OfflineStore {
     }
   }
 
+  async prepareSync(businessId: string): Promise<void> {
+    if (!businessId.trim()) throw new RangeError('sync_account_required');
+    await this.transact(['syncAccount', 'syncOutbox', 'documents'], 'readwrite', async tx => {
+      const account = tx.objectStore('syncAccount');
+      const current = await result<string | undefined>(account.get('business'));
+      if (current === businessId) return;
+      if (current) throw new RangeError('sync_account_conflict');
+      await result(account.add(businessId, 'business'));
+      const documents: LocalDocument[] = await result(tx.objectStore('documents').getAll());
+      for (const document of documents) await this.queueDocument(tx, document, businessId);
+    });
+  }
+
+  pendingSync(businessId: string): Promise<PendingSyncDocument[]> {
+    return this.transact(['syncAccount', 'syncOutbox', 'documents'], 'readonly', async tx => {
+      if (await result(tx.objectStore('syncAccount').get('business')) !== businessId) return [];
+      const records: Array<Omit<PendingSyncDocument, 'document'>> = await result(tx.objectStore('syncOutbox').getAll());
+      const pending = await Promise.all(records.map(async record => ({
+        ...record, document: await result<LocalDocument>(tx.objectStore('documents').get(record.documentId)),
+      })));
+      // A converted invoice references a proforma, which must be accepted first.
+      return pending.sort((a, b) => Number(Boolean(a.document.sourceDocumentId)) - Number(Boolean(b.document.sourceDocumentId))
+        || a.document.issuedAt.localeCompare(b.document.issuedAt) || a.documentId.localeCompare(b.documentId));
+    });
+  }
+
+  async acknowledgeSync(businessId: string, documentId: string, sequence: string): Promise<boolean> {
+    return this.transact(['syncAccount', 'syncOutbox'], 'readwrite', async tx => {
+      if (await result(tx.objectStore('syncAccount').get('business')) !== businessId) return false;
+      const outbox = tx.objectStore('syncOutbox');
+      const pending = await result<Omit<PendingSyncDocument, 'document'> | undefined>(outbox.get(documentId));
+      if (pending?.sequence !== sequence) return false;
+      await result(outbox.delete(documentId));
+      return true;
+    });
+  }
+
+  private async queueDocument(tx: IDBTransaction, document: LocalDocument, businessId?: string) {
+    const target = businessId ?? await result<string | undefined>(tx.objectStore('syncAccount').get('business'));
+    if (!target) return;
+    await result(tx.objectStore('syncOutbox').put({ documentId: document.id, sequence: crypto.randomUUID() }));
+  }
+
   getProfile(): Promise<OfflineProfile | undefined> {
     return this.transact(['profile'], 'readonly', tx => result(tx.objectStore('profile').get('current')));
   }
@@ -133,12 +186,13 @@ export class OfflineStore {
   }
 
   async setArchived(id: string, archived: boolean): Promise<LocalDocument> {
-    return this.transact(['documents'], 'readwrite', async tx => {
+    return this.transact(['documents', 'syncAccount', 'syncOutbox'], 'readwrite', async tx => {
       const store = tx.objectStore('documents');
       const document: LocalDocument | undefined = await result(store.get(id));
       if (!document) throw new RangeError('document_not_found');
       const updated = { ...document, archivedAt: archived ? new Date().toISOString() : null };
       await result(store.put(updated));
+      await this.queueDocument(tx, updated);
       return updated;
     });
   }
@@ -170,7 +224,7 @@ export class OfflineStore {
   }
 
   async restoreSnapshot(snapshot: OfflineSnapshot) {
-    await this.transact([...backupStores, 'numbering'], 'readwrite', async tx => {
+    await this.transact([...backupStores, 'numbering', 'syncAccount', 'syncOutbox'], 'readwrite', async tx => {
       const counts = await Promise.all([...backupStores, 'numbering'].map(name => result(tx.objectStore(name).count())));
       if (counts.some(count => count !== 0)) throw new RangeError('backup_target_not_empty');
       const { profile, ...records } = snapshot;
@@ -179,11 +233,12 @@ export class OfflineStore {
         const store = tx.objectStore(name);
         for (const record of records[name]) await result(store.add(record));
       }
+      for (const document of records.documents) await this.queueDocument(tx, document);
     });
   }
 
   async issue(id: string, input: DraftInput, confirmPaid = false, now = new Date()): Promise<LocalDocument> {
-    return this.transact(['documents', 'profile', 'customers', 'numbering', 'drafts'], 'readwrite', async tx => {
+    return this.transact(['documents', 'profile', 'customers', 'numbering', 'drafts', 'syncAccount', 'syncOutbox'], 'readwrite', async tx => {
       const documents = tx.objectStore('documents');
       const issued: LocalDocument | undefined = await result(documents.get(id));
       if (issued) return issued;
@@ -251,6 +306,7 @@ export class OfflineStore {
         } satisfies CustomerProfile));
       }
       await result(documents.add(document));
+      await this.queueDocument(tx, document);
       await result(tx.objectStore('drafts').delete(id));
       return document;
     });
@@ -262,7 +318,7 @@ export class OfflineStore {
     if (!idempotencyKey || new TextEncoder().encode(idempotencyKey).length > 100) {
       throw new RangeError('idempotency_key_invalid');
     }
-    return this.transact(['documents', 'payments'], 'readwrite', async tx => {
+    return this.transact(['documents', 'payments', 'syncAccount', 'syncOutbox'], 'readwrite', async tx => {
       const documents = tx.objectStore('documents');
       const document: LocalDocument | undefined = await result(documents.get(documentId));
       if (!document) throw new RangeError('document_not_found');
@@ -292,12 +348,13 @@ export class OfflineStore {
       };
       await result(payments.add({ id: idempotencyKey, documentId, amount }));
       await result(documents.put(updated));
+      await this.queueDocument(tx, updated);
       return updated;
     });
   }
 
   async convert(documentId: string, now = new Date()): Promise<LocalDocument> {
-    return this.transact(['documents', 'numbering'], 'readwrite', async tx => {
+    return this.transact(['documents', 'numbering', 'syncAccount', 'syncOutbox'], 'readwrite', async tx => {
       const documents = tx.objectStore('documents');
       const invoice: LocalDocument | undefined = await result(documents.index('sourceDocumentId').get(documentId));
       if (invoice) return invoice;
@@ -316,6 +373,7 @@ export class OfflineStore {
         canIssueFinalInvoice: false, archivedAt: null,
       };
       await result(documents.add(converted));
+      await this.queueDocument(tx, converted);
       return converted;
     });
   }

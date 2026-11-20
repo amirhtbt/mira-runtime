@@ -1,9 +1,11 @@
+import type { OfflineStore } from './offlineStore';
 import type { SalesDocument } from '../api/client';
 import { useRef, useState } from 'react';
 import { normalizePhone } from '../format/phone';
 import { mobileAccountApi } from './mobileAccountApi';
 
 const errors: Record<string, string> = {
+  sync_account_conflict: 'صف این آرشیو به حساب آنلاین دیگری اختصاص دارد.',
   mobile_link_invalid: 'کد اتصال معتبر نیست، منقضی شده یا برای این شماره صادر نشده است. کد تازه بگیر و دوباره درخواست پیامک بده.',
   mobile_link_conflict: 'شماره یا حساب تلگرام قبلاً به حساب دیگری متصل است. حساب‌ها جدا می‌مانند.',
   unauthenticated: 'نشست حساب پایان یافته است. دوباره وارد شوید.',
@@ -16,9 +18,10 @@ const errors: Record<string, string> = {
   mobile_session_missing: 'نشست ورود برقرار نشد. دوباره تلاش کنید.',
 };
 
-export function MobileAccountPanel({ api = mobileAccountApi }: { api?: typeof mobileAccountApi }) {
+export function MobileAccountPanel({ api = mobileAccountApi, store }: { api?: typeof mobileAccountApi; store?: OfflineStore }) {
   const [accountOpen, setAccountOpen] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
+  const [pendingCount, setPendingCount] = useState<number>();
   const [phone, setPhone] = useState('');
   const [challenge, setChallenge] = useState<{ id: string; phone: string }>();
   const [code, setCode] = useState('');
@@ -68,6 +71,7 @@ export function MobileAccountPanel({ api = mobileAccountApi }: { api?: typeof mo
         await api.logout();
         setSignedIn(false);
         setOnlineArchive(undefined);
+        setPendingCount(undefined);
         setMessage('از حساب خارج شدید.');
       })}>خروج از حساب</button> :
       <form className="offline-section" onSubmit={event => {
@@ -123,6 +127,17 @@ export function MobileAccountPanel({ api = mobileAccountApi }: { api?: typeof mo
       </form>}
     {signedIn && <>
       <p>حساب آنلاین فعال است.</p>
+      {store && <div className="offline-section">
+        <p>با آماده‌سازی صف، سندهای فعلی و تغییرات بعدی برای همین حساب در گوشی ثبت می‌شوند. ارسال به سرور هنوز فعال نیست.</p>
+        <button type="button" className="secondary-button" disabled={busy} onClick={() => void run(async () => {
+          const session = await api.session();
+          if (!session) throw new Error('unauthenticated');
+          await store.prepareSync(session.businessId);
+          setPendingCount((await store.pendingSync(session.businessId)).length);
+        })}>آماده‌سازی صف اسناد</button>
+        {pendingCount !== undefined && <p role="status">{pendingCount.toLocaleString('fa-IR')} سند در صف ارسال</p>}
+      </div>}
+
       <div className="offline-actions">
         <button type="button" className="secondary-button" disabled={busy} onClick={() => loadArchive(false)}>اسناد آنلاین</button>
         <button type="button" className="secondary-button" disabled={busy} onClick={() => loadArchive(true)}>بایگانی آنلاین</button>

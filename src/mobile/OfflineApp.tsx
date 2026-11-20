@@ -344,7 +344,7 @@ export function OfflineApp({ store }: { store: OfflineStore }) {
         <p>اطلاعات کسب‌وکار و پیش‌فرض‌های سند را یک‌بار تنظیم کنید.</p>
       </header>
       <SettingsPage key={settingsRevision} source={settings.source} />
-      <MobileAccountPanel />
+      <MobileAccountPanel store={store} />
       <Suspense fallback={null}>
         <OfflineBackupActions store={store} onRestore={async () => {
           await refresh();
