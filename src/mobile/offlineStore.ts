@@ -132,6 +132,10 @@ export class OfflineStore {
     });
   }
 
+  syncBusiness(): Promise<string | undefined> {
+    return this.transact(['syncAccount'], 'readonly', tx => result(tx.objectStore('syncAccount').get('business')));
+  }
+
   pendingSync(businessId: string): Promise<PendingSyncDocument[]> {
     return this.transact(['syncAccount', 'syncOutbox', 'documents'], 'readonly', async tx => {
       if (await result(tx.objectStore('syncAccount').get('business')) !== businessId) return [];
@@ -190,7 +194,7 @@ export class OfflineStore {
       const store = tx.objectStore('documents');
       const document: LocalDocument | undefined = await result(store.get(id));
       if (!document) throw new RangeError('document_not_found');
-      const updated = { ...document, archivedAt: archived ? new Date().toISOString() : null };
+      const updated = { ...document, version: document.version + 1, archivedAt: archived ? new Date().toISOString() : null };
       await result(store.put(updated));
       await this.queueDocument(tx, updated);
       return updated;

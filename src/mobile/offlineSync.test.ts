@@ -41,3 +41,30 @@ it('persists account-scoped pending documents and rejects stale receipts after p
     restored.close();
   }
 });
+
+it('retains a document on transport failure and clears it only after a successful retry', async () => {
+  const { dispatchOfflineSync } = await import('./dispatchOfflineSync');
+  const { createMobileAccountApi } = await import('./mobileAccountApi');
+  const store = await openOfflineStore(crypto.randomUUID());
+  try {
+    const issued = await store.issue('retry-id', input);
+    await store.prepareSync('account');
+    const attempts: unknown[] = [];
+    const api = {
+      ...createMobileAccountApi('https://example.test'),
+      session: async () => ({ businessId: 'account', userId: 'user' }),
+      pushDocument: async (_business: string, document: Record<string, unknown>) => {
+        attempts.push(document);
+        if (attempts.length === 1) throw new Error('mobile_network_error');
+      },
+    };
+    await expect(dispatchOfflineSync(store, api)).rejects.toThrow('mobile_network_error');
+    expect(await store.pendingSync('account')).toHaveLength(1);
+    expect(await dispatchOfflineSync(store, api)).toBe(1);
+    expect(await store.pendingSync('account')).toEqual([]);
+    expect(attempts[0]).toEqual(attempts[1]);
+    expect(attempts[1]).toMatchObject({ documentNumber: issued.documentNumber, grandTotalBaseUnit: '1000' });
+  } finally {
+    store.close();
+  }
+});

@@ -26,10 +26,10 @@ final class Json
     }
 
     /** @return array<string,mixed> */
-    public static function body(): array
+    public static function body(int $maxBytes = 65536): array
     {
-        $raw = file_get_contents('php://input');
-        if ($raw === false || strlen($raw) > 65536) throw new \RuntimeException('request_body_invalid');
+        $raw = file_get_contents('php://input', false, null, 0, $maxBytes + 1);
+        if ($raw === false || strlen($raw) > $maxBytes) throw new \RuntimeException('request_body_invalid');
         $decoded = json_decode($raw === '' ? '{}' : $raw, true, 16, JSON_THROW_ON_ERROR);
         if (!is_array($decoded)) throw new \RuntimeException('request_body_invalid');
         return $decoded;

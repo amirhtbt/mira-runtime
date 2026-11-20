@@ -4,6 +4,8 @@ import { AppFrame, Home, type AppTab } from '../AppFrame';
 import { DocumentsPage } from '../sales/DocumentsPage';
 import { offlineHistorySource } from './offlineHistorySource';
 import { SettingsPage } from '../settings/SettingsPage';
+import { dispatchOfflineSync } from './dispatchOfflineSync';
+import { mobileAccountApi } from './mobileAccountApi';
 import { MobileAccountPanel } from './MobileAccountPanel';
 import { TemplatesPage } from '../templates/TemplatesPage';
 import { offlineSettingsSource } from './offlineSettingsSource';
@@ -105,6 +107,20 @@ export function OfflineApp({ store }: { store: OfflineStore }) {
   useEffect(() => {
     void refresh().catch(() => setError('خواندن اطلاعات گوشی انجام نشد.'));
   }, [refresh]);
+
+  useEffect(() => {
+    if (!mobileAccountApi.enabled) return;
+    const sync = () => {
+      if (navigator.onLine !== false) void dispatchOfflineSync(store).catch(() => undefined);
+    };
+    sync();
+    window.addEventListener('online', sync);
+    const timer = window.setInterval(sync, 30_000);
+    return () => {
+      window.removeEventListener('online', sync);
+      window.clearInterval(timer);
+    };
+  }, [store]);
 
   async function run(operation: () => Promise<void>) {
     if (running.current) return;

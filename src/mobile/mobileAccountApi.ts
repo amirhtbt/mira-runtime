@@ -18,7 +18,7 @@ export interface MobileSession {
 
 export function createMobileAccountApi(value: string | undefined) {
   const origin = configuredOrigin(value);
-  async function request(route: string, data?: Record<string, string>): Promise<unknown> {
+  async function request(route: string, data?: Record<string, unknown>): Promise<unknown> {
     if (!origin) throw new Error('mobile_sms_disabled');
     if (navigator.onLine === false) throw new Error('mobile_offline');
     let response;
@@ -70,6 +70,10 @@ export function createMobileAccountApi(value: string | undefined) {
         throw new Error('mobile_network_error');
       }
       return page;
+    },
+    async pushDocument(businessId: string, document: Record<string, unknown>): Promise<void> {
+      const receipt = await request('/api/v1/mobile/documents/sync', { businessId, document }) as { documentId?: unknown } | null;
+      if (typeof receipt?.documentId !== 'string' || !receipt.documentId) throw new Error('mobile_network_error');
     },
     async logout(): Promise<void> {
       await request('/api/v1/auth/logout', {});

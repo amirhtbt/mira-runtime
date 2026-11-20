@@ -1,3 +1,4 @@
+import { dispatchOfflineSync } from './dispatchOfflineSync';
 import type { OfflineStore } from './offlineStore';
 import type { SalesDocument } from '../api/client';
 import { useRef, useState } from 'react';
@@ -5,6 +6,12 @@ import { normalizePhone } from '../format/phone';
 import { mobileAccountApi } from './mobileAccountApi';
 
 const errors: Record<string, string> = {
+  mobile_sync_conflict: 'نسخهٔ سند روی سرور تغییر کرده است. نسخهٔ گوشی در صف باقی ماند.',
+  mobile_number_conflict: 'این شمارهٔ سند قبلاً در سرور ثبت شده است. سند در صف باقی ماند.',
+  mobile_source_conflict: 'پیش‌فاکتور مبدأ روی سرور قابل تبدیل نیست یا قبلاً تبدیل شده است.',
+  mobile_payment_conflict: 'اطلاعات پرداخت با نسخهٔ سرور متفاوت است. سند در صف باقی ماند.',
+  sales_invalid: 'یک سند در سرور پذیرفته نشد. دادهٔ محلی برای بررسی در صف باقی ماند.',
+  mobile_sync_account_conflict: 'برای ارسال با حسابی وارد شوید که صف به آن اختصاص دارد.',
   sync_account_conflict: 'صف این آرشیو به حساب آنلاین دیگری اختصاص دارد.',
   mobile_link_invalid: 'کد اتصال معتبر نیست، منقضی شده یا برای این شماره صادر نشده است. کد تازه بگیر و دوباره درخواست پیامک بده.',
   mobile_link_conflict: 'شماره یا حساب تلگرام قبلاً به حساب دیگری متصل است. حساب‌ها جدا می‌مانند.',
@@ -42,7 +49,7 @@ export function MobileAccountPanel({ api = mobileAccountApi, store }: { api?: ty
       await action();
     } catch (error) {
       setMessage(error instanceof Error && errors[error.message]
-        ? errors[error.message] : 'ارتباط با سرور برقرار نشد. دوباره تلاش کنید.');
+        ? errors[error.message] : 'عملیات کامل نشد. اتصال یا وضعیت سند را بررسی کنید.');
     } finally {
       pending.current = false;
       setBusy(false);
@@ -128,13 +135,18 @@ export function MobileAccountPanel({ api = mobileAccountApi, store }: { api?: ty
     {signedIn && <>
       <p>حساب آنلاین فعال است.</p>
       {store && <div className="offline-section">
-        <p>با آماده‌سازی صف، سندهای فعلی و تغییرات بعدی برای همین حساب در گوشی ثبت می‌شوند. ارسال به سرور هنوز فعال نیست.</p>
+        <p>ارسال را برای این حساب فعال کنید تا اسناد صادرشده و پرداخت‌های بعدی هنگام اتصال به سرور ارسال شوند.</p>
         <button type="button" className="secondary-button" disabled={busy} onClick={() => void run(async () => {
           const session = await api.session();
           if (!session) throw new Error('unauthenticated');
           await store.prepareSync(session.businessId);
-          setPendingCount((await store.pendingSync(session.businessId)).length);
-        })}>آماده‌سازی صف اسناد</button>
+          try {
+            const sent = await dispatchOfflineSync(store, api);
+            setMessage(sent ? 'ارسال اسناد انجام شد.' : 'صف ارسال خالی است.');
+          } finally {
+            setPendingCount((await store.pendingSync(session.businessId)).length);
+          }
+        })}>همگام‌سازی اسناد</button>
         {pendingCount !== undefined && <p role="status">{pendingCount.toLocaleString('fa-IR')} سند در صف ارسال</p>}
       </div>}
 

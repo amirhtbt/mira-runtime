@@ -25,6 +25,7 @@ use Tinv\Pilot\PilotValidationException;
 use Tinv\Session\SessionContext;
 use Tinv\Session\SessionService;
 use Tinv\Sales\SalesDocumentService;
+use Tinv\Sales\MobileDocumentSync;
 use Tinv\Sales\SalesValidationException;
 use Tinv\Sales\CustomerDirectory;
 use Tinv\Sales\DocumentHistoryService;
@@ -344,6 +345,22 @@ try {
     if ($method === 'PUT' && preg_match('#^/api/v1/customers/([0-9a-f-]{36})$#', $path, $match)) {
         $context = $sessionContext();
         Json::ok($customers->save($context->businessId, Json::body(), $match[1]));
+    }
+
+    if ($method === 'POST' && $path === '/api/v1/mobile/documents/sync') {
+        $context = $sessionContext();
+        header('Cache-Control: no-store');
+        $body = Json::body(3 * 1024 * 1024);
+        if (($body['businessId'] ?? null) !== $context->businessId) {
+            Json::error('mobile_sync_account_conflict', 'The sync account does not match the session', 409);
+        }
+        if (!is_array($body['document'] ?? null)) Json::error('mobile_document_invalid', 'Document required', 422);
+        try {
+            $id = (new MobileDocumentSync($pdo))->push($context->businessId, $body['document']);
+        } catch (SalesValidationException $error) {
+            Json::error($error->reason, 'Mobile document rejected', $error->httpStatus);
+        }
+        Json::ok(['documentId' => $id]);
     }
 
     if ($method === 'POST' && $path === '/api/v1/documents') {

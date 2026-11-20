@@ -212,3 +212,51 @@ Test::run('G07 cursor pagination never repeats a document',function()use($histor
     $second=$history->list($one->context->businessId,['limit'=>2,'cursor'=>$first['nextCursor']]);
     Test::equals([],array_values(array_intersect(array_column($first['documents'],'id'),array_column($second['documents'],'id'))));
 });
+
+Test::run('Android sync preserves number and issue date, deduplicates payments and conversion, and rejects conflicts', function () use ($pdo, $service, $one, $two): void {
+    $sync = new \Tinv\Sales\MobileDocumentSync($pdo);
+    $business = $one->context->businessId;
+    $localId = \Tinv\Support\Uuid::v4();
+    $series = \Tinv\Support\Uuid::v4();
+    $document = [
+        'id' => $localId, 'version' => 1, 'documentType' => 'proforma', 'currencyUnit' => 'rial',
+        'lifecycleStatus' => 'issued', 'documentNumber' => 'PF-' . $series . '-00001',
+        'issuedAt' => '2026-03-19T21:00:00.000Z', 'validityDays' => 1,
+        'isOfficial' => false, 'taxRateBasisPoints' => 0, 'customerName' => 'شرکت بهار',
+        'customerPhone' => '09121234567', 'subtotalBaseUnit' => '1000', 'discountBaseUnit' => '0',
+        'grandTotalBaseUnit' => '1000', 'taxTotalBaseUnit' => '0', 'surchargeBaseUnit' => '0',
+        'paidAmountBaseUnit' => '0', 'settingsSnapshot' => \Tinv\Settings\SettingsSchema::defaults(),
+        'items' => [['title' => 'کالا', 'quantityMilli' => '1000', 'unitPriceBaseUnit' => '1000']],
+    ];
+    $id = $sync->push($business, $document);
+    Test::equals($id, $sync->push($business, $document));
+    $issued = $service->get($business, $id);
+    Test::equals($document['documentNumber'], $issued['documentNumber']);
+    Test::equals('1404/12/29', $issued['issueDate']);
+    Test::equals('1405/01/01', $issued['validUntil']);
+    Test::throws(fn() => $service->get($two->context->businessId, $id), SalesValidationException::class);
+
+    $settled = array_replace($document, [
+        'version' => 2, 'paidAmountBaseUnit' => '1000',
+        'payments' => [[
+            'id' => \Tinv\Support\Uuid::v4(), 'amount_base_unit' => '1000', 'paid_at' => '2026-03-20T08:00:00.000Z',
+        ]],
+    ]);
+    Test::equals($id, $sync->push($business, $settled));
+    Test::equals($id, $sync->push($business, $settled));
+    $paid = $service->get($business, $id);
+    Test::equals('1000', $paid['paidAmountBaseUnit']);
+    Test::equals(1, count($paid['payments']));
+    Test::throws(fn() => $sync->push($business, $document), SalesValidationException::class, 'mobile_sync_conflict');
+
+    $invoice = array_replace($document, [
+        'id' => \Tinv\Support\Uuid::v4(), 'sourceDocumentId' => $localId, 'documentType' => 'invoice',
+        'validityDays' => null, 'documentNumber' => 'INV-' . $series . '-00001', 'paidAmountBaseUnit' => '1000',
+    ]);
+    $invoiceId = $sync->push($business, $invoice);
+    Test::equals($invoiceId, $sync->push($business, $invoice));
+    Test::equals($id, $service->get($business, $invoiceId)['sourceDocumentId']);
+    Test::throws(fn() => $sync->push($business, array_replace($invoice, [
+        'id' => \Tinv\Support\Uuid::v4(), 'documentNumber' => 'INV-' . $series . '-00002',
+    ])), SalesValidationException::class, 'mobile_source_conflict');
+});
