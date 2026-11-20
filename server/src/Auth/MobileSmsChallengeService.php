@@ -102,7 +102,7 @@ final readonly class MobileSmsChallengeService
         }
     }
 
-    private static function normalizeMobile(string $value): string
+    public static function normalizeMobile(string $value): string
     {
         $phone = Phone::normalize($value);
         if (!preg_match('/^09[0-9]{9}$/D', $phone)) throw new \InvalidArgumentException('mobile_sms_number_invalid');

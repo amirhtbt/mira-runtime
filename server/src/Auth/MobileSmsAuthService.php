@@ -16,13 +16,14 @@ final readonly class MobileSmsAuthService
         private string $secret,
     ) {}
 
-    public function verify(string $number, string $challengeId, string $code, ?int $now = null, string $userAgent = ''): ?AuthResult
+    public function verify(string $number, string $challengeId, string $code, ?int $now = null, string $userAgent = '', ?string $linkCode = null): ?AuthResult
     {
         $now ??= time();
         $phone = $this->challenges->consume($number, $challengeId, $code, $now);
         if ($phone === null) return null;
 
-        $key = hash_hmac('sha256', 'mobile-account-phone:' . $phone, $this->secret, true);
+        $links = new MobileTelegramLink($this->pdo, $this->secret);
+        $key = $links->phoneKey($phone);
         $at = gmdate('Y-m-d H:i:s', $now);
         $this->pdo->beginTransaction();
         try {
@@ -36,7 +37,21 @@ final readonly class MobileSmsAuthService
             );
             $query->execute([$key]);
             $identity = $query->fetch();
-            if ($identity['user_id'] === null) {
+            if ($linkCode !== null) {
+                $target = $links->consume($linkCode, $key, $now);
+                $userId = (string)$target['user_id'];
+                $businessId = (string)$target['business_id'];
+                if ($identity['user_id'] !== null && $identity['user_id'] !== $userId) {
+                    throw new \DomainException('mobile_link_conflict');
+                }
+                $other = $this->pdo->prepare('SELECT phone_hash FROM mobile_phone_identities WHERE user_id = ? FOR UPDATE');
+                $other->execute([$userId]);
+                $existingPhone = $other->fetchColumn();
+                if ($existingPhone !== false && !hash_equals($existingPhone, $key)) {
+                    throw new \DomainException('mobile_link_conflict');
+                }
+                $this->pdo->prepare('UPDATE mobile_phone_identities SET user_id = ? WHERE phone_hash = ?')->execute([$userId, $key]);
+            } elseif ($identity['user_id'] === null) {
                 $userId = Uuid::v4();
                 $businessId = Uuid::v4();
                 $this->pdo->prepare('INSERT INTO users (id, created_at) VALUES (?, ?)')->execute([$userId, $at]);

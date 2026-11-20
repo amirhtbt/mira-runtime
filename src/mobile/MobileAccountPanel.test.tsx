@@ -15,16 +15,22 @@ afterEach(() => {
 it('requests a four-digit SMS, verifies it, checks the resulting cookie session, and signs out', async () => {
   const id = '285427f4-92d8-4b90-b775-be841b6c9212';
   const session = { userId: 'user', businessId: 'business' };
+  const linkCode = 'abcdef0123456789abcdef01';
   request
     .mockResolvedValueOnce({ status: 401 })
     .mockResolvedValueOnce({ status: 202, data: { ok: true, data: { challengeId: id } } })
     .mockResolvedValueOnce({ status: 200, data: { ok: true, data: session } })
     .mockResolvedValueOnce({ status: 200, data: { ok: true, data: session } })
+    .mockResolvedValueOnce({ status: 200, data: { ok: true, data: {
+      documents: [{ id: 'server-doc', customerName: 'مشتری تلگرام', documentNumber: 'F-1', grandTotalBaseUnit: '2000' }],
+      nextCursor: null,
+    } } })
     .mockResolvedValueOnce({ status: 200, data: { ok: true, data: [] } });
   render(<MobileAccountPanel api={createMobileAccountApi('https://example.test')} />);
   expect(request).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'ورود یا مشاهدهٔ حساب' }));
   fireEvent.change(await screen.findByLabelText('شمارهٔ همراه'), { target: { value: '+۹۸ ۹۱۲ ۱۲۳ ۴۵۶۷' } });
+  fireEvent.change(screen.getByLabelText('کد اتصال تلگرام (اختیاری)'), { target: { value: linkCode } });
   fireEvent.click(screen.getByRole('button', { name: 'دریافت کد پیامکی' }));
   fireEvent.change(await screen.findByLabelText('کد چهاررقمی'), { target: { value: '۰۰۴۲' } });
   fireEvent.click(screen.getByRole('button', { name: 'تأیید و ورود' }));
@@ -34,9 +40,11 @@ it('requests a four-digit SMS, verifies it, checks the resulting cookie session,
   }));
   expect(request).toHaveBeenNthCalledWith(3, expect.objectContaining({
     url: 'https://example.test/api/v1/auth/mobile/verify', disableRedirects: true,
-    data: { phone: '09121234567', challengeId: id, code: '0042' },
+    data: { phone: '09121234567', challengeId: id, code: '0042', linkCode },
   }));
   expect(request).toHaveBeenNthCalledWith(4, expect.objectContaining({ url: 'https://example.test/api/v1/session' }));
+  fireEvent.click(screen.getByRole('button', { name: 'اسناد آنلاین' }));
+  await screen.findByText('مشتری تلگرام');
   fireEvent.click(screen.getByRole('button', { name: 'خروج از حساب' }));
   await screen.findByText('از حساب خارج شدید.');
 });

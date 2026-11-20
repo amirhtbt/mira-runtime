@@ -149,3 +149,9 @@ export type PilotMissingCategory='templates'|'export'|'history'|'settings'|'paym
 export async function getPilotStatus():Promise<PilotStatus>{return requireData(await request<PilotStatus>('/api/v1/pilot/status'),'pilot_status_failed');}
 export async function submitPilotFeedback(input:{score:number;missingCategory:PilotMissingCategory|null;text:string}):Promise<void>{requireData(await request<{id:string;submitted:boolean}>('/api/v1/pilot/feedback',{method:'POST',body:JSON.stringify(input)}),'pilot_feedback_failed');}
 export async function recordPilotEvent(event:'app_open'|'template_selected'|'settings_section_used'|'export_failed',properties:Record<string,string|boolean>={}):Promise<void>{requireData(await request<{recorded:boolean}>('/api/v1/pilot/events',{method:'POST',body:JSON.stringify({event,properties})}),'pilot_event_failed');}
+
+export async function createMobileTelegramLink(initData: string, phone: string): Promise<{ linkCode: string; expiresIn: number }> {
+  return requireData(await request<{ linkCode: string; expiresIn: number }>('/api/v1/auth/mobile/link-code', {
+    method: 'POST', body: JSON.stringify({ initData, phone }),
+  }), 'mobile_link_invalid');
+}

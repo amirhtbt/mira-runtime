@@ -1,8 +1,12 @@
+import type { SalesDocument } from '../api/client';
 import { useRef, useState } from 'react';
 import { normalizePhone } from '../format/phone';
 import { mobileAccountApi } from './mobileAccountApi';
 
 const errors: Record<string, string> = {
+  mobile_link_invalid: 'کد اتصال معتبر نیست، منقضی شده یا برای این شماره صادر نشده است. کد تازه بگیر و دوباره درخواست پیامک بده.',
+  mobile_link_conflict: 'شماره یا حساب تلگرام قبلاً به حساب دیگری متصل است. حساب‌ها جدا می‌مانند.',
+  unauthenticated: 'نشست حساب پایان یافته است. دوباره وارد شوید.',
   mobile_offline: 'برای ورود به حساب اینترنت لازم است.',
   mobile_sms_disabled: 'ورود پیامکی در این نسخه فعال نیست.',
   mobile_sms_delivery_failed: 'ارسال کد انجام نشد. کمی بعد دوباره تلاش کنید.',
@@ -18,6 +22,8 @@ export function MobileAccountPanel({ api = mobileAccountApi }: { api?: typeof mo
   const [phone, setPhone] = useState('');
   const [challenge, setChallenge] = useState<{ id: string; phone: string }>();
   const [code, setCode] = useState('');
+  const [linkCode, setLinkCode] = useState('');
+  const [onlineArchive, setOnlineArchive] = useState<{ archived: boolean; documents: SalesDocument[]; cursor: string | null }>();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const pending = useRef(false);
@@ -40,6 +46,16 @@ export function MobileAccountPanel({ api = mobileAccountApi }: { api?: typeof mo
     }
   }
 
+  function loadArchive(archived: boolean, cursor?: string) {
+    void run(async () => {
+      const page = await api.documents(archived, cursor);
+      setOnlineArchive(previous => ({
+        archived, cursor: page.nextCursor,
+        documents: cursor && previous ? [...previous.documents, ...page.documents] : page.documents,
+      }));
+    });
+  }
+
   return <section className="settings-card offline-section" aria-labelledby="mobile-account-heading">
     <h2 id="mobile-account-heading">حساب کاربری</h2>
     <p>ورود اختیاری است. صدور سند و آرشیو روی گوشی بدون حساب در دسترس‌اند.</p>
@@ -51,6 +67,7 @@ export function MobileAccountPanel({ api = mobileAccountApi }: { api?: typeof mo
       <button type="button" className="secondary-button" disabled={busy} onClick={() => void run(async () => {
         await api.logout();
         setSignedIn(false);
+        setOnlineArchive(undefined);
         setMessage('از حساب خارج شدید.');
       })}>خروج از حساب</button> :
       <form className="offline-section" onSubmit={event => {
@@ -66,7 +83,21 @@ export function MobileAccountPanel({ api = mobileAccountApi }: { api?: typeof mo
             setMessage('کد چهاررقمی را وارد کنید.');
             return;
           }
-          await api.verifyCode(challenge.phone, challenge.id, normalizedCode);
+          const link = linkCode.trim().toLowerCase();
+          if (link && !/^[a-f0-9]{24}$/.test(link)) {
+            setMessage('کد اتصال را کامل از تنظیمات ربات کپی کنید.');
+            return;
+          }
+          try {
+            await api.verifyCode(challenge.phone, challenge.id, normalizedCode, link || undefined);
+          } catch (error) {
+            if (link && error instanceof Error && ['mobile_link_invalid', 'mobile_link_conflict'].includes(error.message)) {
+              setChallenge(undefined);
+              setCode('');
+            }
+            throw error;
+          }
+          setLinkCode('');
           setChallenge(undefined);
           setCode('');
           setAccountOpen(false);
@@ -79,6 +110,8 @@ export function MobileAccountPanel({ api = mobileAccountApi }: { api?: typeof mo
       }}>
         <label>شمارهٔ همراه<input type="tel" dir="ltr" autoComplete="tel" maxLength={24}
           disabled={busy || Boolean(challenge)} value={phone} onChange={event => setPhone(event.currentTarget.value)} /></label>
+        <label>کد اتصال تلگرام (اختیاری)<input type="text" dir="ltr" autoComplete="off"
+          maxLength={24} disabled={busy} value={linkCode} onChange={event => setLinkCode(event.currentTarget.value)} /></label>
         {challenge && <label>کد چهاررقمی<input type="text" inputMode="numeric" dir="ltr" autoComplete="one-time-code"
           maxLength={4} disabled={busy} value={code} onChange={event => setCode(event.currentTarget.value)} /></label>}
         <button type="submit" className="primary-button" disabled={busy}>{challenge ? 'تأیید و ورود' : 'دریافت کد پیامکی'}</button>
@@ -88,7 +121,23 @@ export function MobileAccountPanel({ api = mobileAccountApi }: { api?: typeof mo
           setMessage('');
         }}>تغییر شماره یا درخواست دوباره</button>}
       </form>}
-    {signedIn && <p>حساب آنلاین فعال است.</p>}
+    {signedIn && <>
+      <p>حساب آنلاین فعال است.</p>
+      <div className="offline-actions">
+        <button type="button" className="secondary-button" disabled={busy} onClick={() => loadArchive(false)}>اسناد آنلاین</button>
+        <button type="button" className="secondary-button" disabled={busy} onClick={() => loadArchive(true)}>بایگانی آنلاین</button>
+      </div>
+      {onlineArchive && <section aria-label={onlineArchive.archived ? 'بایگانی آنلاین' : 'اسناد آنلاین'}>
+        {onlineArchive.documents.length === 0 && <p>سندی در این فهرست نیست.</p>}
+        {onlineArchive.documents.map(doc => <article className="document-row" key={doc.id}>
+          <strong>{doc.customerName}</strong>
+          <span><bdi>{doc.documentNumber ?? 'پیش‌نویس'}</bdi> · {doc.issueDate ?? ''}</span>
+          <span>{BigInt(doc.grandTotalBaseUnit).toLocaleString('fa-IR')} ریال</span>
+        </article>)}
+        {onlineArchive.cursor && <button type="button" className="secondary-button" disabled={busy}
+          onClick={() => loadArchive(onlineArchive.archived, onlineArchive.cursor ?? undefined)}>نمایش اسناد بیشتر</button>}
+      </section>}
+    </>}
     {(busy || message) && <p role="status">{busy ? 'در حال ارتباط با سرور…' : message}</p>}
   </section>;
 }

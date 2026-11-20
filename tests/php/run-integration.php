@@ -151,3 +151,40 @@ Test::run('mobile SMS login issues a session for one stable business after each 
     Test::equals($first->context->businessId, $second?->context->businessId);
     Test::assert($first->sessionToken !== $second?->sessionToken);
 });
+
+Test::run('Telegram linking requires the verified target number and retains the existing Telegram business', function () use ($pdo, $auth, $sessions, $config, $now): void {
+    $telegram = $auth->authenticateTelegram(TelegramFixture::user('900009916', $now, $config->telegramBotToken), $now);
+    $secret = str_repeat('link-test-secret-', 3);
+    $phone = '09121234570';
+    $wrongPhone = '09121234571';
+    $outbox = [];
+    $challenges = new \Tinv\Auth\MobileSmsChallengeService(
+        $pdo, $secret, static function (string $phone, string $code) use (&$outbox): void { $outbox[$phone] = $code; },
+    );
+    $links = new \Tinv\Auth\MobileTelegramLink($pdo, $secret);
+    $mobile = new \Tinv\Auth\MobileSmsAuthService($pdo, $challenges, $sessions, $secret);
+    $ticket = $links->issue($telegram->context, $phone, $now);
+    $wrongId = $challenges->request($wrongPhone, $now);
+    Test::throws(fn() => $mobile->verify($wrongPhone, $wrongId, $outbox[$wrongPhone], $now + 1, '', $ticket), DomainException::class);
+
+    $id = $challenges->request($phone, $now);
+    $joined = $mobile->verify($phone, $id, $outbox[$phone], $now + 1, '', $ticket);
+    Test::equals($telegram->context->businessId, $joined?->context->businessId);
+    Test::equals($telegram->context->userId, $joined?->context->userId);
+
+    $id = $challenges->request($phone, $now + 60);
+    Test::throws(fn() => $mobile->verify($phone, $id, $outbox[$phone], $now + 61, '', $ticket), DomainException::class);
+    $id = $challenges->request($phone, $now + 120);
+    $again = $mobile->verify($phone, $id, $outbox[$phone], $now + 121);
+    Test::equals($telegram->context->businessId, $again?->context->businessId);
+
+    $id = $challenges->request($wrongPhone, $now + 60);
+    $independent = $mobile->verify($wrongPhone, $id, $outbox[$wrongPhone], $now + 61);
+    $conflict = $links->issue($telegram->context, $wrongPhone, $now + 65);
+    $id = $challenges->request($wrongPhone, $now + 120);
+    Test::throws(fn() => $mobile->verify($wrongPhone, $id, $outbox[$wrongPhone], $now + 121, '', $conflict), DomainException::class);
+    $id = $challenges->request($wrongPhone, $now + 180);
+    $unchanged = $mobile->verify($wrongPhone, $id, $outbox[$wrongPhone], $now + 181);
+    Test::assert($independent !== null && $independent->context->businessId !== $telegram->context->businessId);
+    Test::equals($independent->context->businessId, $unchanged?->context->businessId);
+});

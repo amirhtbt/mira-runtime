@@ -1,3 +1,4 @@
+import type { DocumentHistoryPage } from '../api/client';
 import { CapacitorHttp } from '@capacitor/core';
 
 function configuredOrigin(value: string | undefined): string | null {
@@ -57,8 +58,18 @@ export function createMobileAccountApi(value: string | undefined) {
       }
       return data.challengeId;
     },
-    async verifyCode(phone: string, challengeId: string, code: string): Promise<void> {
-      await request('/api/v1/auth/mobile/verify', { phone, challengeId, code });
+    async verifyCode(phone: string, challengeId: string, code: string, linkCode?: string): Promise<void> {
+      await request('/api/v1/auth/mobile/verify', { phone, challengeId, code, ...(linkCode ? { linkCode } : {}) });
+    },
+    async documents(archived: boolean, cursor?: string): Promise<DocumentHistoryPage> {
+      const query = new URLSearchParams({ limit: '20' });
+      if (archived) query.set('archived', '1');
+      if (cursor) query.set('cursor', cursor);
+      const page = await request('/api/v1/documents?' + query) as DocumentHistoryPage | null;
+      if (!page || !Array.isArray(page.documents) || (page.nextCursor !== null && typeof page.nextCursor !== 'string')) {
+        throw new Error('mobile_network_error');
+      }
+      return page;
     },
     async logout(): Promise<void> {
       await request('/api/v1/auth/logout', {});

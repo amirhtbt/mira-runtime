@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { authenticateWithTelegram, getBusinessSettings, getPilotStatus, listSalesDocuments, submitPilotFeedback, type PilotFeedbackStatus, type PilotMissingCategory, type SessionUser } from './api/client';
 import { OwnerDashboard } from './admin/OwnerDashboard';
+import { MobileTelegramLinkPanel } from './settings/MobileTelegramLinkPanel';
 import { SettingsPage } from './settings/SettingsPage';
 import { SalesDocumentPage } from './sales/SalesDocumentPage';
 import { DocumentsPage } from './sales/DocumentsPage';
@@ -27,8 +28,8 @@ function PilotFeedback({status,onSubmitted}:{status:PilotFeedbackStatus;onSubmit
   return <section className="pilot-feedback" aria-labelledby="pilot-feedback-title"><h2 id="pilot-feedback-title">فاکتورساز بهار چقدر برایتان کاربردی بود؟</h2><p>بعد از چند سند از شما می‌پرسیم تا ساخت اولین فاکتور متوقف نشود.</p><div className="pilot-score" aria-label="امتیاز از یک تا پنج">{[1,2,3,4,5].map(value=><button type="button" className={score===value?'active':''} aria-pressed={score===value} onClick={()=>setScore(value)} key={value}>{value.toLocaleString('fa-IR')}</button>)}</div><label>چه چیزی بیشتر لازم دارید؟<select value={category??''} onChange={event=>setCategory((event.target.value||null) as PilotMissingCategory|null)}><option value="">انتخاب اختیاری</option><option value="templates">قالب‌های بیشتر</option><option value="export">خروجی و اشتراک‌گذاری</option><option value="history">تاریخچه و جست‌وجو</option><option value="settings">تنظیمات</option><option value="payments">پرداخت‌ها</option><option value="other">مورد دیگر</option></select></label><label>توضیح کوتاه (اختیاری)<textarea value={text} maxLength={1000} onChange={event=>setText(event.target.value)} placeholder="اطلاعات مشتری، شماره تماس یا مشخصات فاکتور را اینجا ننویسید."/></label>{state==='error'&&<p role="alert">ثبت نشد؛ دوباره تلاش کنید.</p>}<button className="secondary-button" type="button" disabled={score<1||state==='saving'} onClick={()=>void submit()}>{state==='saving'?'در حال ثبت…':'ثبت بازخورد'}</button></section>;
 }
 
-function Settings({ onSummaryChange }: { onSummaryChange: (summary: { businessName?: string; settingsComplete: boolean }) => void }) {
-  return <div className="page settings-shell"><header className="page-header"><span>شخصی‌سازی</span><h1>تنظیمات</h1><p>اطلاعات کسب‌وکار و پیش‌فرض‌های سند را یک‌بار تنظیم کنید.</p></header><SettingsPage onSummaryChange={onSummaryChange} /></div>;
+function Settings({ onSummaryChange, getInitData }: { getInitData?: () => string; onSummaryChange: (summary: { businessName?: string; settingsComplete: boolean }) => void }) {
+  return <div className="page settings-shell"><header className="page-header"><span>شخصی‌سازی</span><h1>تنظیمات</h1><p>اطلاعات کسب‌وکار و پیش‌فرض‌های سند را یک‌بار تنظیم کنید.</p></header><SettingsPage onSummaryChange={onSummaryChange} />{getInitData && <MobileTelegramLinkPanel getInitData={getInitData} />}</div>;
 }
 
 export function AppShell({ telegram, runtime, data = emptyHome, preview = false, businessId = 'preview', pilotFeedback, onFeedbackSubmitted }: { telegram: TelegramAdapter; runtime: TelegramRuntimeSnapshot; data?: HomeData; preview?: boolean; businessId?: string;pilotFeedback?:PilotFeedbackStatus;onFeedbackSubmitted?:()=>void }) {
@@ -54,7 +55,7 @@ export function AppShell({ telegram, runtime, data = emptyHome, preview = false,
   const createContent = documentType ? <SalesDocumentPage key={documentId ?? newDocumentVersion} type={documentType} documentId={documentId} preview={preview} draftKey={draftKey} showPreview={documentPreviewOpen} onPreviewChange={setDocumentPreviewOpen} onTypeChange={setDocumentType} onBack={() => {setDocumentPreviewOpen(false);setDocumentType(null);setDocumentId(null);if(documentId){setCreateIntent(false);setTab(documentReturnTab);}}} /> : null;
   return <AppFrame theme={runtime.colorScheme} platform={runtime.platform} tab={tab} creating={createIntent}
     contentKey={createIntent ? `create-${documentId??'new'}` : tab} onTab={chooseTab} onCreate={startCreate}>
-    {createIntent ? createContent : tab === 'home' ? <Home data={homeData} onCreate={startCreate} onOpen={openRecentDocument} feedback={pilotFeedback && onFeedbackSubmitted && <PilotFeedback status={pilotFeedback} onSubmitted={onFeedbackSubmitted} />} /> : tab === 'invoices' ? <DocumentsPage preview={preview} onOpen={openDocument} /> : tab === 'templates' ? <TemplatesPage preview={preview} /> : <Settings onSummaryChange={updateSettingsSummary} />}
+    {createIntent ? createContent : tab === 'home' ? <Home data={homeData} onCreate={startCreate} onOpen={openRecentDocument} feedback={pilotFeedback && onFeedbackSubmitted && <PilotFeedback status={pilotFeedback} onSubmitted={onFeedbackSubmitted} />} /> : tab === 'invoices' ? <DocumentsPage preview={preview} onOpen={openDocument} /> : tab === 'templates' ? <TemplatesPage preview={preview} /> : <Settings onSummaryChange={updateSettingsSummary} getInitData={preview ? undefined : () => telegram.getInitData() ?? ''} />}
   </AppFrame>;
 }
 
