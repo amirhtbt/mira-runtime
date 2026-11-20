@@ -1,0 +1,8 @@
+{
+  "appId": "net.factorsaaz.offline.dev",
+  "appName": "فاکتورساز بهار",
+  "webDir": "dist-android",
+  "server": {
+    "androidScheme": "https"
+  }
+}

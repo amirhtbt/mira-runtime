@@ -1,0 +1,65 @@
+name: Android debug build
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - 'src/mobile/**'
+      - 'capacitor.config.json'
+      - 'package*.json'
+      - 'vite.config.ts'
+      - '.github/workflows/android-debug.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install pinned Android SDK tools
+        run: |
+          sdk="$RUNNER_TEMP/android-sdk"
+          archive="$RUNNER_TEMP/android-tools.zip"
+          curl --fail --location --retry 3 https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip -o "$archive"
+          echo "7ec965280a073311c339e571cd5de778b9975026cfcbe79f2b1cdcb1e15317ee  $archive" | sha256sum --check
+          unzip -q "$archive" -d "$RUNNER_TEMP/android-tools"
+          mkdir -p "$sdk/cmdline-tools"
+          mv "$RUNNER_TEMP/android-tools/cmdline-tools" "$sdk/cmdline-tools/latest"
+          sdkmanager="$sdk/cmdline-tools/latest/bin/sdkmanager"
+          set +o pipefail
+          yes | "$sdkmanager" --sdk_root="$sdk" --licenses
+          set -o pipefail
+          "$sdkmanager" --sdk_root="$sdk" 'platforms;android-36' 'build-tools;36.0.0' 'platform-tools'
+          echo "ANDROID_HOME=$sdk" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$sdk" >> "$GITHUB_ENV"
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm test -- src/mobile
+      - run: npm run android:sync
+        env:
+          VITE_MOBILE_API_ORIGIN: ${{ vars.ANDROID_API_ORIGIN }}
+      - run: ./gradlew --no-daemon assembleDebug
+        working-directory: android
+      - name: Verify APK installs alongside the original debug package
+        run: |
+          apk=android/app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" > "$RUNNER_TEMP/android-badging.txt"
+          grep -F "package: name='net.factorsaaz.offline.dev.preview' versionCode='2'" "$RUNNER_TEMP/android-badging.txt"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify "$apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: factorsaaz-android-preview
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7

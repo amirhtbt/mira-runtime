@@ -14,7 +14,10 @@ const themes = [
 
 const normalizeTemplate = (value: string): TemplateId => isTemplateId(value) ? value : value === 'luxury' ? 'classic-business' : value === 'bazaar' ? 'modern-business' : 'minimal';
 
-export function TemplatesPage({ preview = false }: { preview?: boolean }) {
+const remoteTemplates = { getBusinessSettings, updateBusinessSettings, recordPilotEvent };
+export function TemplatesPage({ preview = false, source = remoteTemplates }: {
+  preview?: boolean; source?: typeof remoteTemplates;
+}) {
   const [saved, setSaved] = useState<TemplateId>('minimal');
   const [selected, setSelected] = useState<TemplateId>('minimal');
   const [accent, setAccent] = useState('#214f7b');
@@ -26,17 +29,17 @@ export function TemplatesPage({ preview = false }: { preview?: boolean }) {
   const dialog = useRef<HTMLDialogElement>(null);
 
   useEffect(() => { let cancelled = false; setStatus('loading'); setMessage(''); void (async () => { try {
-    const payload = preview ? null : await getBusinessSettings();
+    const payload = preview ? null : await source.getBusinessSettings();
     if (cancelled) return;
     const id = normalizeTemplate(payload?.settings.visual.templateId ?? 'minimal');
     const activeAccent = payload?.settings.visual.accent ?? '#214f7b';
     setSaved(id); setSelected(id); setAccent(activeAccent); setSavedAccent(activeAccent); setStatus('ready');
-  } catch { if (!cancelled) { setStatus('error'); setMessage('تنظیمات قالب از سرور دریافت نشد. پیش‌نمایش‌ها در دسترس‌اند؛ برای بازیابی قالب فعال دوباره تلاش کنید.'); } } })(); return () => { cancelled = true; }; }, [preview, loadAttempt]);
+  } catch { if (!cancelled) { setStatus('error'); setMessage('تنظیمات قالب از سرور دریافت نشد. پیش‌نمایش‌ها در دسترس‌اند؛ برای بازیابی قالب فعال دوباره تلاش کنید.'); } } })(); return () => { cancelled = true; }; }, [preview, loadAttempt, source]);
 
   const definition = getTemplate(selected);
   const model = useMemo(() => fixture(selected), [selected]);
   async function save() { setStatus('saving'); setMessage(''); try {
-    if (!preview) { await updateBusinessSettings({ visual: { templateId: selected, accent } }); void recordPilotEvent('template_selected',{template_id:selected}).catch(()=>undefined); }
+    if (!preview) { await source.updateBusinessSettings({ visual: { templateId: selected, accent } }); void source.recordPilotEvent('template_selected',{template_id:selected}).catch(()=>undefined); }
     setSaved(selected); setSavedAccent(accent); setStatus('ready'); setMessage('قالب فعال ذخیره شد؛ اسناد بعدی با همین قالب صادر می‌شوند.');
   } catch { setStatus('error'); setMessage('ذخیره قالب انجام نشد. دوباره تلاش کنید.'); } }
 

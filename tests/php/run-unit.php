@@ -141,3 +141,12 @@ Test::run('contact normalization handles copied whitespace and Iranian prefixes'
     Test::equals('02188881234', \Tinv\Support\Phone::normalize('+98 21 8888 1234'));
     Test::equals('+49123456', \Tinv\Support\Phone::normalize('+49 123 456'));
 });
+
+Test::run('IPPanel pattern payload preserves four digits and uses an E.164 recipient', function (): void {
+    $provider = new \Tinv\Auth\IppanelPatternSms('unit-test-key', '+983000505', 'test_pattern', 'otp');
+    $payload = $provider->payload('09121234567', '0042');
+    Test::equals(['+989121234567'], $payload['recipients']);
+    Test::equals('0042', $payload['params']->otp);
+    Test::equals('test_pattern', $payload['code']);
+    Test::throws(fn() => $provider->payload('09121234567', '123456'), InvalidArgumentException::class);
+});

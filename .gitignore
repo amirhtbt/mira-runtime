@@ -10,3 +10,5 @@ server/vendor/
 *.log
 *.tsbuildinfo
 test-results/
+
+dist-android/

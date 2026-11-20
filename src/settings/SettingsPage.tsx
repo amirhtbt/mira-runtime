@@ -4,7 +4,12 @@ import { businessLogoUrl, deleteBusinessLogo, deleteOfficialLogo, getBusinessSet
 import type { BusinessSettings, CustomAdjustmentDefault, SettingsResponse } from './types';
 
 interface Summary { businessName?: string; settingsComplete: boolean }
-interface Props { onSummaryChange?: (summary: Summary) => void }
+const remoteSettings = {
+  businessLogoUrl, deleteBusinessLogo, deleteOfficialLogo, getBusinessSettings, officialLogoUrl,
+  recordPilotEvent, updateBusinessSettings, uploadBusinessLogo, uploadOfficialLogo,
+};
+export type SettingsSource = typeof remoteSettings;
+interface Props { onSummaryChange?: (summary: Summary) => void; source?: SettingsSource }
 
 const itemLabels: Array<[keyof BusinessSettings['items'], string]> = [
   ['rowNumber', 'شماره ردیف'], ['sku', 'کد / SKU'], ['image', 'تصویر'], ['title', 'عنوان'],
@@ -32,7 +37,7 @@ function Toggle({ label, checked, onChange, description }: { label: string; chec
 const emptyPayment={accounts:[],cardNumber:'',accountNumber:'',sheba:'',bankName:'',accountHolder:'',instructions:''};
 function clone(settings: BusinessSettings): BusinessSettings { const copy=JSON.parse(JSON.stringify(settings)) as BusinessSettings;return{...copy,officialSeller:copy.officialSeller??{companyName:'',address:'',phone:'',nationalId:''},officialPayment:copy.officialPayment??{...emptyPayment,accounts:[]}}; }
 
-export function SettingsPage({ onSummaryChange }: Props) {
+export function SettingsPage({ onSummaryChange, source = remoteSettings }: Props) {
   const [payload, setPayload] = useState<SettingsResponse | null>(null);
   const [draft, setDraft] = useState<BusinessSettings | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'saving' | 'load-error' | 'save-error'>('loading');
@@ -46,7 +51,7 @@ export function SettingsPage({ onSummaryChange }: Props) {
     void (async () => {
       setState('loading'); setMessage('');
       try {
-        const next = await getBusinessSettings();
+        const next = await source.getBusinessSettings();
         if (cancelled) return;
         const normalized = clone(next.settings); normalized.presentation.currencyUnit = 'rial';
         setPayload(next); setDraft(normalized); setState('ready');
@@ -57,10 +62,10 @@ export function SettingsPage({ onSummaryChange }: Props) {
       }
     })();
     return () => { cancelled = true; };
-  }, [onSummaryChange, loadAttempt]);
+  }, [onSummaryChange, loadAttempt, source]);
 
-  const logoUrl = useMemo(() => payload?.logo.present ? businessLogoUrl(payload.logo.updatedAt) : null, [payload?.logo.present, payload?.logo.updatedAt]);
-  const officialLogoSrc = useMemo(() => payload?.officialLogo?.present ? officialLogoUrl(payload.officialLogo.updatedAt) : null, [payload?.officialLogo?.present, payload?.officialLogo?.updatedAt]);
+  const logoUrl = useMemo(() => payload?.logo.present ? source.businessLogoUrl(payload.logo.updatedAt) : null, [payload?.logo.present, payload?.logo.updatedAt, source]);
+  const officialLogoSrc = useMemo(() => payload?.officialLogo?.present ? source.officialLogoUrl(payload.officialLogo.updatedAt) : null, [payload?.officialLogo?.present, payload?.officialLogo?.updatedAt, source]);
   function patch<K extends keyof BusinessSettings>(section: K, value: Partial<BusinessSettings[K]>) {
     setDraft(current => current ? { ...current, [section]: { ...current[section], ...value } } : current);
   }
@@ -68,7 +73,7 @@ export function SettingsPage({ onSummaryChange }: Props) {
     if (!draft) return;
     setState('saving'); setMessage('');
     try {
-      const saved = await updateBusinessSettings(draft);
+      const saved = await source.updateBusinessSettings(draft);
       setPayload(saved); setDraft(clone(saved.settings)); setState('ready'); setMessage('تغییرات ذخیره شد.');
       const name = saved.settings.seller.displayName || saved.settings.seller.businessName || undefined;
       onSummaryChange?.({ businessName: name, settingsComplete: Boolean(name) });
@@ -81,18 +86,18 @@ export function SettingsPage({ onSummaryChange }: Props) {
     if (!file) return;
     if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 1572864) { setMessage('لوگو باید PNG، JPEG یا WebP و حداکثر ۱٫۵ مگابایت باشد.'); return; }
     setLogoBusy(true); setMessage('');
-    try { const logo = await uploadBusinessLogo(file); setPayload(current => current ? { ...current, logo } : current); setMessage('لوگو ذخیره شد.'); }
+    try { const logo = await source.uploadBusinessLogo(file); setPayload(current => current ? { ...current, logo } : current); setMessage('لوگو ذخیره شد.'); }
     catch { setMessage('لوگو معتبر نبود یا بارگذاری نشد.'); }
     finally { setLogoBusy(false); }
   }
   async function removeLogo() {
     setLogoBusy(true); setMessage('');
-    try { const logo = await deleteBusinessLogo(); setPayload(current => current ? { ...current, logo } : current); setMessage('لوگو حذف شد.'); }
+    try { const logo = await source.deleteBusinessLogo(); setPayload(current => current ? { ...current, logo } : current); setMessage('لوگو حذف شد.'); }
     catch { setMessage('حذف لوگو انجام نشد.'); }
     finally { setLogoBusy(false); }
   }
-  async function officialLogoChanged(event:ChangeEvent<HTMLInputElement>){const file=event.target.files?.[0];event.target.value='';if(!file)return;if(!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>1572864){setMessage('لوگوی رسمی باید PNG، JPEG یا WebP و حداکثر ۱٫۵ مگابایت باشد.');return;}setLogoBusy(true);try{const officialLogo=await uploadOfficialLogo(file);setPayload(current=>current?{...current,officialLogo}:current);setMessage('لوگوی رسمی ذخیره شد.');}catch{setMessage('بارگذاری لوگوی رسمی انجام نشد.');}finally{setLogoBusy(false);}}
-  async function removeOfficialLogo(){setLogoBusy(true);try{const officialLogo=await deleteOfficialLogo();setPayload(current=>current?{...current,officialLogo}:current);setMessage('لوگوی رسمی حذف شد.');}catch{setMessage('حذف لوگوی رسمی انجام نشد.');}finally{setLogoBusy(false);}}
+  async function officialLogoChanged(event:ChangeEvent<HTMLInputElement>){const file=event.target.files?.[0];event.target.value='';if(!file)return;if(!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>1572864){setMessage('لوگوی رسمی باید PNG، JPEG یا WebP و حداکثر ۱٫۵ مگابایت باشد.');return;}setLogoBusy(true);try{const officialLogo=await source.uploadOfficialLogo(file);setPayload(current=>current?{...current,officialLogo}:current);setMessage('لوگوی رسمی ذخیره شد.');}catch{setMessage('بارگذاری لوگوی رسمی انجام نشد.');}finally{setLogoBusy(false);}}
+  async function removeOfficialLogo(){setLogoBusy(true);try{const officialLogo=await source.deleteOfficialLogo();setPayload(current=>current?{...current,officialLogo}:current);setMessage('لوگوی رسمی حذف شد.');}catch{setMessage('حذف لوگوی رسمی انجام نشد.');}finally{setLogoBusy(false);}}
 
   if (state === 'load-error') return <section className="settings-feedback error" role="alert"><p>{message}</p><button type="button" className="secondary-button" onClick={() => setLoadAttempt(value => value + 1)}>تلاش دوباره</button></section>;
   if (state === 'loading' || !draft || !payload) return <section className="settings-loading" role="status"><span className="settings-spinner"/><p>در حال آماده‌کردن تنظیمات…</p></section>;
@@ -107,7 +112,7 @@ export function SettingsPage({ onSummaryChange }: Props) {
   function account(index:number,value:Partial<(typeof accounts)[number]>){patch('payment',{accounts:accounts.map((row,i)=>i===index?{...row,...value}:row)});}
   const officialAccounts=s.officialPayment.accounts??[];
   function officialAccount(index:number,value:Partial<(typeof officialAccounts)[number]>){patch('officialPayment',{accounts:officialAccounts.map((row,i)=>i===index?{...row,...value}:row)});}
-  function chooseProfile(next:'informal'|'official'){setProfile(next);void recordPilotEvent('settings_section_used',{section:'profile'}).catch(()=>undefined);}
+  function chooseProfile(next:'informal'|'official'){setProfile(next);void source.recordPilotEvent('settings_section_used',{section:'profile'}).catch(()=>undefined);}
 
   return <div className="settings-page">
     <div className="settings-profile-switch" role="tablist" aria-label="نوع اطلاعات فروشنده">

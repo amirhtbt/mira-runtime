@@ -1,0 +1,28 @@
+[
+  {
+    "name": "unofficial proforma with fractional quantity and line discount",
+    "taxRateBasisPoints": 0,
+    "items": [{"title": "خدمت", "quantityMilli": "1500", "unitPriceBaseUnit": "3", "discountBaseUnit": "1"}],
+    "expected": {
+      "subtotal": "5", "discount": "1", "tax": "0", "total": "4",
+      "items": [{"taxBaseUnit": "0", "lineTotalBaseUnit": "4"}]
+    }
+  },
+  {
+    "name": "official VAT rounds half up per discounted line",
+    "taxRateBasisPoints": 1000,
+    "items": [
+      {"title": "کالا ۱", "quantityMilli": "1000", "unitPriceBaseUnit": "6", "discountBaseUnit": "1"},
+      {"title": "کالا ۲", "quantityMilli": "1000", "unitPriceBaseUnit": "5"},
+      {"title": "کالا ۳", "quantityMilli": "1000", "unitPriceBaseUnit": "5", "discountBaseUnit": "1"}
+    ],
+    "expected": {
+      "subtotal": "16", "discount": "2", "tax": "2", "total": "16",
+      "items": [
+        {"taxBaseUnit": "1", "lineTotalBaseUnit": "6"},
+        {"taxBaseUnit": "1", "lineTotalBaseUnit": "6"},
+        {"taxBaseUnit": "0", "lineTotalBaseUnit": "4"}
+      ]
+    }
+  }
+]

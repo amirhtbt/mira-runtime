@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { authenticateWithTelegram, getBusinessSettings, getPilotStatus, listSalesDocuments, submitPilotFeedback, type PilotFeedbackStatus, type PilotMissingCategory, type SessionUser } from './api/client';
 import { OwnerDashboard } from './admin/OwnerDashboard';
+import { MobileTelegramLinkPanel } from './settings/MobileTelegramLinkPanel';
 import { SettingsPage } from './settings/SettingsPage';
 import { SalesDocumentPage } from './sales/SalesDocumentPage';
 import { DocumentsPage } from './sales/DocumentsPage';
@@ -8,36 +9,16 @@ import { TemplatesPage } from './templates/TemplatesPage';
 import type { DocumentType, SalesDocument } from './api/client';
 import { applyRuntimeCssVariables, TelegramAdapter, type TelegramRuntimeSnapshot } from './telegram/adapter';
 import { shouldReduceMotion } from './motion';
-import { toFaDigits } from './format/faDigits';
+import { AppFrame, Icon, Home, type AppTab, type HomeData, type RecentInvoice } from './AppFrame';
+export type { AppTab, HomeData, RecentInvoice } from './AppFrame';
 
-export type AppTab = 'home' | 'invoices' | 'settings' | 'templates';
 export type ShellState = 'loading' | 'ready' | 'offline' | 'error';
-export interface RecentInvoice { id: string; documentId: string; documentType: DocumentType; customer: string; amount: string; date: string; status: 'draft' | 'final' }
-export interface HomeData { recentInvoices: RecentInvoice[]; hasDocuments?: boolean; businessName?: string; settingsComplete: boolean }
 const emptyHome: HomeData = { recentInvoices: [], settingsComplete: false };
-
-function Icon({ name }: { name: 'home' | 'invoice' | 'settings' | 'templates' | 'plus' | 'spark' | 'store' | 'arrow' | 'retry' }) {
-  const paths = {
-    home: <><path d="M3 10.8 12 3l9 7.8"/><path d="M5.5 9.5v10h13v-10M9.5 19.5v-6h5v6"/></>,
-    invoice: <><path d="M6 3.5h12v17l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></>,
-    settings: <><circle cx="12" cy="12" r="3"/><path d="M19 15a2 2 0 0 0 .4 2l-2.5 2.5a2 2 0 0 0-2-.4 2 2 0 0 0-1.3 1.6h-3.4A2 2 0 0 0 9 19a2 2 0 0 0-2 .4L4.6 17a2 2 0 0 0 .4-2 2 2 0 0 0-1.7-1.3v-3.4A2 2 0 0 0 5 9a2 2 0 0 0-.4-2L7 4.6A2 2 0 0 0 9 5a2 2 0 0 0 1.3-1.7h3.4A2 2 0 0 0 15 5a2 2 0 0 0 2-.4L19.4 7a2 2 0 0 0-.4 2 2 2 0 0 0 1.7 1.3v3.4A2 2 0 0 0 19 15z"/></>,
-    templates: <><rect x="3.5" y="4" width="17" height="16" rx="2"/><path d="M3.5 9h17M9 9v11"/></>,
-    plus: <path d="M12 5v14M5 12h14"/>,
-    spark: <><path d="m12 2 1.4 5.2L18 10l-4.6 2.8L12 18l-1.4-5.2L6 10l4.6-2.8z"/><path d="m19 16 .6 2.1 1.9 1.1-1.9 1.1L19 22l-.6-1.7-1.9-1.1 1.9-1.1z"/></>,
-    store: <><path d="M4 9h16l-1.5-5h-13zM5 9v11h14V9"/><path d="M9 20v-6h6v6"/></>,
-    arrow: <path d="m9 18 6-6-6-6"/>, retry: <><path d="M20 7v5h-5"/><path d="M18.5 16a8 8 0 1 1 .6-7.1L20 12"/></>
-  };
-  return <svg className="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;
-}
 
 export function StatusView({ state, message, onRetry }: { state: Exclude<ShellState, 'ready'>; message?: string; onRetry?: () => void }) {
   if (state === 'loading') return <div className="state-card loading-card" role="status" aria-label="در حال بارگذاری"><div className="skeleton badge"/><div className="skeleton title"/><div className="skeleton line"/><div className="skeleton button"/></div>;
   const offline = state === 'offline';
   return <div className="state-card state-message" role="alert"><span className="state-icon"><Icon name="retry" /></span><h1>{offline ? 'اینترنت در دسترس نیست' : 'اتصال برقرار نشد'}</h1><p>{message ?? (offline ? 'اتصال را بررسی کنید؛ اطلاعاتی از دستگاه شما حذف نشده است.' : 'لطفاً چند لحظه دیگر دوباره تلاش کنید.')}</p>{onRetry && <button className="secondary-button" onClick={onRetry}><Icon name="retry" />تلاش دوباره</button>}</div>;
-}
-
-function EmptyInvoices({ compact = false }: { compact?: boolean }) {
-  return <section className={`empty-card${compact ? ' compact' : ''}`}><div className="empty-visual" aria-hidden="true"><span/><span/><span/></div><div><h2>هنوز سندی ندارید</h2><p>اولین فاکتور یا پیش‌فاکتور شما از همین‌جا شروع می‌شود.</p></div></section>;
 }
 
 function PilotFeedback({status,onSubmitted}:{status:PilotFeedbackStatus;onSubmitted:()=>void}) {
@@ -47,15 +28,8 @@ function PilotFeedback({status,onSubmitted}:{status:PilotFeedbackStatus;onSubmit
   return <section className="pilot-feedback" aria-labelledby="pilot-feedback-title"><h2 id="pilot-feedback-title">فاکتورساز بهار چقدر برایتان کاربردی بود؟</h2><p>بعد از چند سند از شما می‌پرسیم تا ساخت اولین فاکتور متوقف نشود.</p><div className="pilot-score" aria-label="امتیاز از یک تا پنج">{[1,2,3,4,5].map(value=><button type="button" className={score===value?'active':''} aria-pressed={score===value} onClick={()=>setScore(value)} key={value}>{value.toLocaleString('fa-IR')}</button>)}</div><label>چه چیزی بیشتر لازم دارید؟<select value={category??''} onChange={event=>setCategory((event.target.value||null) as PilotMissingCategory|null)}><option value="">انتخاب اختیاری</option><option value="templates">قالب‌های بیشتر</option><option value="export">خروجی و اشتراک‌گذاری</option><option value="history">تاریخچه و جست‌وجو</option><option value="settings">تنظیمات</option><option value="payments">پرداخت‌ها</option><option value="other">مورد دیگر</option></select></label><label>توضیح کوتاه (اختیاری)<textarea value={text} maxLength={1000} onChange={event=>setText(event.target.value)} placeholder="اطلاعات مشتری، شماره تماس یا مشخصات فاکتور را اینجا ننویسید."/></label>{state==='error'&&<p role="alert">ثبت نشد؛ دوباره تلاش کنید.</p>}<button className="secondary-button" type="button" disabled={score<1||state==='saving'} onClick={()=>void submit()}>{state==='saving'?'در حال ثبت…':'ثبت بازخورد'}</button></section>;
 }
 
-function Home({ data, onCreate, onOpen, pilotFeedback, onFeedbackSubmitted }: { data: HomeData; onCreate: () => void; onOpen: (item:RecentInvoice) => void; pilotFeedback?:PilotFeedbackStatus;onFeedbackSubmitted?:()=>void }) {
-  const hasInvoices = data.hasDocuments ?? data.recentInvoices.length > 0;
-  return <div className="page page-home"><header className="hero"><div className="eyebrow"><Icon name="spark" />سریع، ساده، حرفه‌ای</div><h1>{hasInvoices ? 'دوباره آماده‌ایم' : 'اولین سند فروشتان را بسازید'}</h1><p>{hasInvoices ? 'کارهای اخیرتان همین‌جا در دسترس است.' : 'فاکتور یا پیش‌فاکتور؛ بدون تنظیمات پیچیده.'}</p><button className="primary-button hero-action" onClick={onCreate}><Icon name="plus" /><span>ساخت سند جدید</span><Icon name="arrow" /></button><div className="hero-orb" aria-hidden="true"><Icon name="invoice" /></div></header>
-    {data.recentInvoices.length > 0 ? <section className="section-block" aria-labelledby="recent-heading"><div className="section-title"><h2 id="recent-heading">آخرین اسناد</h2><span>{data.recentInvoices.length.toLocaleString('fa-IR')} مورد</span></div><div className="invoice-list">{data.recentInvoices.slice(0, 3).map(item => <button type="button" className="invoice-row invoice-row-button" key={item.documentId} aria-label={`مشاهده سند ${item.id} برای ${item.customer}`} onClick={() => onOpen(item)}><span className="invoice-icon"><Icon name="invoice" /></span><span className="invoice-main"><strong>{item.customer}</strong><span><bdi>{toFaDigits(item.id)}</bdi> · <bdi>{toFaDigits(item.date)}</bdi></span></span><span className="invoice-amount"><bdi>{item.amount}</bdi><span>{item.status === 'draft' ? 'پیش‌نویس' : 'نهایی'}</span></span></button>)}</div></section> : data.hasDocuments === false || (data.hasDocuments === undefined && data.recentInvoices.length === 0) ? <EmptyInvoices compact /> : null}
-    <section className="business-card" aria-label="وضعیت کسب‌وکار"><span className="business-icon"><Icon name="store" /></span><div><h2>{data.businessName || 'مشخصات کسب‌وکار'}</h2><p>{data.settingsComplete ? 'اطلاعات پایه آماده است' : 'بعداً نام و اطلاعات فروشگاه را تکمیل کنید'}</p></div><span className={`status-pill ${data.settingsComplete ? 'complete' : ''}`}>{data.settingsComplete ? 'آماده' : 'تکمیل نشده'}</span></section>{pilotFeedback&&onFeedbackSubmitted&&<PilotFeedback status={pilotFeedback} onSubmitted={onFeedbackSubmitted}/>}</div>;
-}
-
-function Settings({ onSummaryChange }: { onSummaryChange: (summary: { businessName?: string; settingsComplete: boolean }) => void }) {
-  return <div className="page settings-shell"><header className="page-header"><span>شخصی‌سازی</span><h1>تنظیمات</h1><p>اطلاعات کسب‌وکار و پیش‌فرض‌های سند را یک‌بار تنظیم کنید.</p></header><SettingsPage onSummaryChange={onSummaryChange} /></div>;
+function Settings({ onSummaryChange, getInitData }: { getInitData?: () => string; onSummaryChange: (summary: { businessName?: string; settingsComplete: boolean }) => void }) {
+  return <div className="page settings-shell"><header className="page-header"><span>شخصی‌سازی</span><h1>تنظیمات</h1><p>اطلاعات کسب‌وکار و پیش‌فرض‌های سند را یک‌بار تنظیم کنید.</p></header><SettingsPage onSummaryChange={onSummaryChange} />{getInitData && <MobileTelegramLinkPanel getInitData={getInitData} />}</div>;
 }
 
 export function AppShell({ telegram, runtime, data = emptyHome, preview = false, businessId = 'preview', pilotFeedback, onFeedbackSubmitted }: { telegram: TelegramAdapter; runtime: TelegramRuntimeSnapshot; data?: HomeData; preview?: boolean; businessId?: string;pilotFeedback?:PilotFeedbackStatus;onFeedbackSubmitted?:()=>void }) {
@@ -79,8 +53,10 @@ export function AppShell({ telegram, runtime, data = emptyHome, preview = false,
   function openDocument(doc:SalesDocument){setDocumentReturnTab('invoices');setDocumentType(doc.documentType);setDocumentId(doc.id);setCreateIntent(true);telegram.haptic('selection');}
   function openRecentDocument(item:RecentInvoice){setDocumentReturnTab('home');setDocumentType(item.documentType);setDocumentId(item.documentId);setCreateIntent(true);telegram.haptic('selection');}
   const createContent = documentType ? <SalesDocumentPage key={documentId ?? newDocumentVersion} type={documentType} documentId={documentId} preview={preview} draftKey={draftKey} showPreview={documentPreviewOpen} onPreviewChange={setDocumentPreviewOpen} onTypeChange={setDocumentType} onBack={() => {setDocumentPreviewOpen(false);setDocumentType(null);setDocumentId(null);if(documentId){setCreateIntent(false);setTab(documentReturnTab);}}} /> : null;
-  return <main className="app-shell" data-theme={runtime.colorScheme} data-platform={runtime.platform}><div className="app-frame"><div className="topbar"><div className="brand"><span className="brand-mark"><Icon name="spark" /></span><span><strong>فاکتورساز بهار</strong><small>فاکتورساز تلگرام</small></span></div><span className="secure-chip"><span/>امن</span></div><div className="content" key={createIntent ? `create-${documentId??'new'}` : tab}>{createIntent ? createContent : tab === 'home' ? <Home data={homeData} onCreate={startCreate} onOpen={openRecentDocument} pilotFeedback={pilotFeedback} onFeedbackSubmitted={onFeedbackSubmitted} /> : tab === 'invoices' ? <DocumentsPage preview={preview} onOpen={openDocument} /> : tab === 'templates' ? <TemplatesPage preview={preview} /> : <Settings onSummaryChange={updateSettingsSummary} />}</div>
-    <nav className="bottom-nav" aria-label="ناوبری اصلی"><button className={tab === 'home' && !createIntent ? 'active' : ''} aria-current={tab === 'home' && !createIntent ? 'page' : undefined} onClick={() => chooseTab('home')}><Icon name="home" /><span>خانه</span></button><button className={tab === 'invoices' && !createIntent ? 'active' : ''} aria-current={tab === 'invoices' && !createIntent ? 'page' : undefined} onClick={() => chooseTab('invoices')}><Icon name="invoice" /><span>فاکتورها</span></button><button className={`nav-create${createIntent ? ' active' : ''}`} aria-label="ساخت سند جدید" aria-current={createIntent ? 'page' : undefined} onClick={startCreate}><span><Icon name="plus" /></span><b>سند جدید</b></button><button className={tab === 'settings' && !createIntent ? 'active' : ''} aria-current={tab === 'settings' && !createIntent ? 'page' : undefined} onClick={() => chooseTab('settings')}><Icon name="settings" /><span>تنظیمات</span></button><button className={tab === 'templates' && !createIntent ? 'active' : ''} aria-current={tab === 'templates' && !createIntent ? 'page' : undefined} onClick={() => chooseTab('templates')}><Icon name="templates" /><span>قالب‌ها</span></button></nav></div></main>;
+  return <AppFrame theme={runtime.colorScheme} platform={runtime.platform} tab={tab} creating={createIntent}
+    contentKey={createIntent ? `create-${documentId??'new'}` : tab} onTab={chooseTab} onCreate={startCreate}>
+    {createIntent ? createContent : tab === 'home' ? <Home data={homeData} onCreate={startCreate} onOpen={openRecentDocument} feedback={pilotFeedback && onFeedbackSubmitted && <PilotFeedback status={pilotFeedback} onSubmitted={onFeedbackSubmitted} />} /> : tab === 'invoices' ? <DocumentsPage preview={preview} onOpen={openDocument} /> : tab === 'templates' ? <TemplatesPage preview={preview} /> : <Settings onSummaryChange={updateSettingsSummary} getInitData={preview ? undefined : () => telegram.getInitData() ?? ''} />}
+  </AppFrame>;
 }
 
 export default function App() {

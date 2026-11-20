@@ -37,6 +37,29 @@ Test::run('G04 integer-only deterministic money calculation',function():void{
     Test::throws(fn()=>Money::amount('1.5','amount'),SalesValidationException::class,'amount_invalid');
 });
 
+$moneyFixtures = json_decode(file_get_contents(__DIR__ . '/../fixtures/offline-sale-money.json'), true, 32, JSON_THROW_ON_ERROR);
+foreach ($moneyFixtures as $fixture) {
+    Test::run('Offline money reference: ' . $fixture['name'], function () use ($fixture): void {
+        $actual = Money::calculate($fixture['items'], 0, 0, $fixture['taxRateBasisPoints']);
+        foreach (['subtotal', 'discount', 'tax', 'total'] as $key) {
+            Test::equals($fixture['expected'][$key], (string)$actual[$key]);
+        }
+        $items = array_map(static fn(array $line): array => [
+            'taxBaseUnit' => (string)$line['taxBaseUnit'],
+            'lineTotalBaseUnit' => (string)$line['lineTotalBaseUnit'],
+        ], $actual['items']);
+        Test::equals($fixture['expected']['items'], $items);
+    });
+}
+
+Test::run('Offline money reference: PHP requires a line title', function (): void {
+    Test::throws(
+        fn() => Money::calculate([['title' => '', 'quantityMilli' => '1000', 'unitPriceBaseUnit' => '1']]),
+        SalesValidationException::class,
+        'item_title_invalid'
+    );
+});
+
 Test::run('G04.1 normalizes Iranian mobiles and isolates reusable customers',function()use($pdo,$one,$two):void{
     Test::equals('09121234567',CustomerDirectory::mobile('+98 912 123 4567'));
     $directory=new CustomerDirectory($pdo);
@@ -58,12 +81,13 @@ Test::run('G04.1 official VAT is deterministic per line and unofficial remains z
 });
 
 Test::run('G04.1 Jalali issue and expiry dates cross boundaries correctly',function():void{
-    $end=JalaliDate::plusDays('2026-03-20',1);Test::equals('1405/01/01',$end['jalali']);
+    Test::equals(['date' => '2026-03-20', 'jalali' => '1404/12/29'], JalaliDate::plusDays('2026-03-20', 0));
+    Test::equals(['date' => '2026-03-21', 'jalali' => '1405/01/01'], JalaliDate::plusDays('2026-03-20', 1));
 });
 
 $proforma=null; $invoice=null;
 Test::run('G04 creates and recovers a proforma draft with stable customer',function()use($service,$one,&$proforma):void{
-    $proforma=$service->createDraft($one->context->businessId,['documentType'=>'proforma','customer'=>['displayName'=>'مشتری نمونه','phone'=>'09120000000'],'items'=>[['title'=>'سفارش کامل','quantityMilli'=>'1000','unitPriceBaseUnit'=>'10000000']]]);
+    $proforma=$service->createDraft($one->context->businessId,['documentType'=>'proforma','customer'=>['displayName'=>'مشتری نمونه','phone'=>'09120000000'],'validityDays'=>1,'items'=>[['title'=>'سفارش کامل','quantityMilli'=>'1000','unitPriceBaseUnit'=>'10000000']]]);
     Test::equals('draft',$proforma['lifecycleStatus']); Test::equals('10000000',$proforma['grandTotalBaseUnit']);
     $loaded=$service->get($one->context->businessId,$proforma['id']); Test::equals($proforma['customerId'],$loaded['customerId']);
 });
@@ -79,11 +103,31 @@ Test::run('G04 tenant and customer scope prevent cross-business access',function
     Test::throws(fn()=>$service->createDraft($two->context->businessId,['documentType'=>'proforma','customer'=>['id'=>$proforma['customerId'],'displayName'=>'tamper','phone'=>'09121111111'],'items'=>[['title'=>'x','quantityMilli'=>'1000','unitPriceBaseUnit'=>'1']]]),SalesValidationException::class,'customer_not_found');
 });
 
-Test::run('G04 finalizes immutable proforma with settings snapshot',function()use($service,$settings,$one,&$proforma,$now):void{
+Test::run('G04 finalizes immutable proforma with settings snapshot',function()use($service,$settings,$one,&$proforma,$now,$pdo):void{
+    $dateBefore = JalaliDate::today()['date'];
     $proforma=$service->finalize($one->context->businessId,$proforma['id']); Test::equals('issued',$proforma['lifecycleStatus']);
     Test::assert(isset($proforma['settingsSnapshot']['visual']['templateId']));
     Test::throws(fn()=>$service->updateDraft($one->context->businessId,$proforma['id'],['version'=>$proforma['version'],'items'=>[['title'=>'تغییر','quantityMilli'=>'1000','unitPriceBaseUnit'=>'1']]]),SalesValidationException::class,'finalized_document_immutable');
+    $dateAfter = JalaliDate::today()['date'];
+    $issueDate = $proforma['issueDate'];
+    $validUntil = $proforma['validUntil'];
+    $matchesIssueDate = static fn(string $date): bool =>
+        [$issueDate, $validUntil] === [JalaliDate::plusDays($date, 0)['jalali'], JalaliDate::plusDays($date, 1)['jalali']];
+    Test::assert($matchesIssueDate($dateBefore) || $matchesIssueDate($dateAfter));
+    Test::equals('میرا اصلی', $proforma['settingsSnapshot']['seller']['businessName']);
+
     $settings->update($one->context->businessId,['seller'=>['businessName'=>'نام بعدی']],$now+1);
+    (new CustomerDirectory($pdo))->save($one->context->businessId, [
+        'displayName' => 'نام تغییر یافته در دفتر مشتریان',
+        'phone' => '09120000002',
+    ], $proforma['customerId']);
+    $reloaded = $service->finalize($one->context->businessId, $proforma['id']);
+    Test::equals($proforma, $reloaded);
+    // Restore the live directory entry for the history-search cases below.
+    (new CustomerDirectory($pdo))->save($one->context->businessId, [
+        'displayName' => $proforma['customerName'],
+        'phone' => $proforma['customerPhone'],
+    ], $proforma['customerId']);
 });
 
 Test::run('G06 records tenant-scoped export evidence only for issued documents',function()use($service,$one,$two,&$proforma,$pdo):void{
@@ -98,6 +142,12 @@ Test::run('G04 records 3m deposit, rejects overpayment, then settles remaining 7
     $proforma=$service->recordPayment($one->context->businessId,$proforma['id'],['amountBaseUnit'=>'3000000','idempotencyKey'=>'deposit-3m']);
     Test::equals('3000000',$proforma['paidAmountBaseUnit']); Test::equals('7000000',$proforma['remainingAmountBaseUnit']); Test::equals('partial',$proforma['settlementStatus']);
     Test::throws(fn()=>$service->recordPayment($one->context->businessId,$proforma['id'],['amountBaseUnit'=>'7000001','idempotencyKey'=>'too-much']),SalesValidationException::class,'overpayment_rejected');
+    Test::throws(
+        fn() => $service->convert($one->context->businessId, $proforma['id']),
+        SalesValidationException::class,
+        'proforma_not_fully_paid'
+    );
+    Test::equals($proforma, $service->get($one->context->businessId, $proforma['id']));
     $proforma=$service->recordPayment($one->context->businessId,$proforma['id'],['amountBaseUnit'=>'7000000','idempotencyKey'=>'balance-7m']);
     $again=$service->recordPayment($one->context->businessId,$proforma['id'],['amountBaseUnit'=>'7000000','idempotencyKey'=>'balance-7m']);
     Test::equals('paid',$proforma['settlementStatus']); Test::equals('0',$proforma['remainingAmountBaseUnit']); Test::equals(2,count($again['payments']));
@@ -107,6 +157,11 @@ Test::run('G04 converts once and final invoice omits installment breakdown',func
     $invoice=$service->convert($one->context->businessId,$proforma['id']); $again=$service->convert($one->context->businessId,$proforma['id']);
     Test::equals($invoice['id'],$again['id']); Test::equals('invoice',$invoice['documentType']); Test::equals($proforma['id'],$invoice['sourceDocumentId']);
     Test::equals('10000000',$invoice['grandTotalBaseUnit']); Test::equals('10000000',$invoice['paidAmountBaseUnit']); Test::assert(!array_key_exists('payments',$invoice));
+    Test::equals($invoice['documentNumber'], $again['documentNumber']);
+    Test::equals(null, $invoice['validUntil']);
+    Test::equals($proforma['settingsSnapshot'], $invoice['settingsSnapshot']);
+    Test::equals($proforma['customerName'], $invoice['customerName']);
+    Test::equals($proforma['customerPhone'], $invoice['customerPhone']);
     Test::equals(2,count($service->get($one->context->businessId,$proforma['id'])['payments']));
 });
 
@@ -156,4 +211,52 @@ Test::run('G07 cursor pagination never repeats a document',function()use($histor
     Test::assert($first['nextCursor']!==null);
     $second=$history->list($one->context->businessId,['limit'=>2,'cursor'=>$first['nextCursor']]);
     Test::equals([],array_values(array_intersect(array_column($first['documents'],'id'),array_column($second['documents'],'id'))));
+});
+
+Test::run('Android sync preserves number and issue date, deduplicates payments and conversion, and rejects conflicts', function () use ($pdo, $service, $one, $two): void {
+    $sync = new \Tinv\Sales\MobileDocumentSync($pdo);
+    $business = $one->context->businessId;
+    $localId = \Tinv\Support\Uuid::v4();
+    $series = \Tinv\Support\Uuid::v4();
+    $document = [
+        'id' => $localId, 'version' => 1, 'documentType' => 'proforma', 'currencyUnit' => 'rial',
+        'lifecycleStatus' => 'issued', 'documentNumber' => 'PF-' . $series . '-00001',
+        'issuedAt' => '2026-03-19T21:00:00.000Z', 'validityDays' => 1,
+        'isOfficial' => false, 'taxRateBasisPoints' => 0, 'customerName' => 'شرکت بهار',
+        'customerPhone' => '09121234567', 'subtotalBaseUnit' => '1000', 'discountBaseUnit' => '0',
+        'grandTotalBaseUnit' => '1000', 'taxTotalBaseUnit' => '0', 'surchargeBaseUnit' => '0',
+        'paidAmountBaseUnit' => '0', 'settingsSnapshot' => \Tinv\Settings\SettingsSchema::defaults(),
+        'items' => [['title' => 'کالا', 'quantityMilli' => '1000', 'unitPriceBaseUnit' => '1000']],
+    ];
+    $id = $sync->push($business, $document);
+    Test::equals($id, $sync->push($business, $document));
+    $issued = $service->get($business, $id);
+    Test::equals($document['documentNumber'], $issued['documentNumber']);
+    Test::equals('1404/12/29', $issued['issueDate']);
+    Test::equals('1405/01/01', $issued['validUntil']);
+    Test::throws(fn() => $service->get($two->context->businessId, $id), SalesValidationException::class);
+
+    $settled = array_replace($document, [
+        'version' => 2, 'paidAmountBaseUnit' => '1000',
+        'payments' => [[
+            'id' => \Tinv\Support\Uuid::v4(), 'amount_base_unit' => '1000', 'paid_at' => '2026-03-20T08:00:00.000Z',
+        ]],
+    ]);
+    Test::equals($id, $sync->push($business, $settled));
+    Test::equals($id, $sync->push($business, $settled));
+    $paid = $service->get($business, $id);
+    Test::equals('1000', $paid['paidAmountBaseUnit']);
+    Test::equals(1, count($paid['payments']));
+    Test::throws(fn() => $sync->push($business, $document), SalesValidationException::class, 'mobile_sync_conflict');
+
+    $invoice = array_replace($document, [
+        'id' => \Tinv\Support\Uuid::v4(), 'sourceDocumentId' => $localId, 'documentType' => 'invoice',
+        'validityDays' => null, 'documentNumber' => 'INV-' . $series . '-00001', 'paidAmountBaseUnit' => '1000',
+    ]);
+    $invoiceId = $sync->push($business, $invoice);
+    Test::equals($invoiceId, $sync->push($business, $invoice));
+    Test::equals($id, $service->get($business, $invoiceId)['sourceDocumentId']);
+    Test::throws(fn() => $sync->push($business, array_replace($invoice, [
+        'id' => \Tinv\Support\Uuid::v4(), 'documentNumber' => 'INV-' . $series . '-00002',
+    ])), SalesValidationException::class, 'mobile_source_conflict');
 });

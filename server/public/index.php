@@ -8,6 +8,10 @@ require is_file($runtimeBootstrap) ? $runtimeBootstrap : $sourceBootstrap;
 use Tinv\Auth\AuthService;
 use Tinv\Admin\OwnerAnalytics;
 use Tinv\Auth\InitDataValidator;
+use Tinv\Auth\IppanelPatternSms;
+use Tinv\Auth\MobileSmsAuthService;
+use Tinv\Auth\MobileSmsChallengeService;
+use Tinv\Auth\MobileTelegramLink;
 use Tinv\Auth\ReplayDetected;
 use Tinv\Auth\ValidationException;
 use Tinv\Config;
@@ -21,6 +25,7 @@ use Tinv\Pilot\PilotValidationException;
 use Tinv\Session\SessionContext;
 use Tinv\Session\SessionService;
 use Tinv\Sales\SalesDocumentService;
+use Tinv\Sales\MobileDocumentSync;
 use Tinv\Sales\SalesValidationException;
 use Tinv\Sales\CustomerDirectory;
 use Tinv\Sales\DocumentHistoryService;
@@ -146,6 +151,81 @@ try {
         }
     }
 
+    if ($method === 'POST' && $path === '/api/v1/auth/mobile/link-code') {
+        header('Cache-Control: no-store');
+        $secret = Env::string('MOBILE_SMS_SECRET', '');
+        if (strlen($secret) < 32) Json::error('mobile_link_disabled', 'Mobile linking is unavailable', 503);
+        $context = $sessionContext();
+        $rateLimiter->consume('mobile-link:' . $context->userId, 'mobile_link', 5, 600);
+        $body = Json::body();
+        $initData = $body['initData'] ?? null;
+        $phone = $body['phone'] ?? null;
+        if (!is_string($initData) || !is_string($phone) || strlen($phone) > 80) {
+            Json::error('mobile_link_invalid', 'Telegram proof and mobile number required', 422);
+        }
+        $validator = new InitDataValidator($config->telegramBotToken, $config->authMaxAgeSeconds, $config->authFutureSkewSeconds);
+        $proof = $validator->validate($initData);
+        if (!$sessions->belongsToTelegramIdentity($context, (string)$proof->user['id'])) {
+            Json::error('mobile_link_invalid', 'Telegram identity does not match the session', 403);
+        }
+        try {
+            $code = (new MobileTelegramLink($pdo, $secret))->issue($context, $phone, time());
+        } catch (\InvalidArgumentException) {
+            Json::error('mobile_sms_number_invalid', 'Invalid mobile number', 422);
+        }
+        Json::ok(['linkCode' => $code, 'expiresIn' => MobileTelegramLink::TTL], 201);
+    }
+
+    if ($method === 'POST' && in_array($path, ['/api/v1/auth/mobile/request', '/api/v1/auth/mobile/verify'], true)) {
+        header('Cache-Control: no-store');
+        $secret = Env::string('MOBILE_SMS_SECRET', '');
+        $key = Env::string('MOBILE_SMS_API_KEY', '');
+        $sender = Env::string('MOBILE_SMS_SENDER', '');
+        $pattern = Env::string('MOBILE_SMS_PATTERN', '');
+        $variable = Env::string('MOBILE_SMS_VARIABLE', '') ?: 'code';
+        if (strlen($secret) < 32 || $key === '' || $sender === '' || $pattern === '') {
+            Json::error('mobile_sms_disabled', 'Mobile SMS login is unavailable', 503);
+        }
+        $provider = new IppanelPatternSms($key, $sender, $pattern, $variable);
+        $challenges = new MobileSmsChallengeService($pdo, $secret, $provider->deliver(...));
+        $body = Json::body();
+        $phone = $body['phone'] ?? null;
+        if (!is_string($phone) || strlen($phone) > 80) Json::error('mobile_sms_number_invalid', 'Invalid mobile number', 422);
+        $ipScope = 'mobile-auth-ip:' . (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+        try {
+            if ($path === '/api/v1/auth/mobile/request') {
+                $rateLimiter->consume($ipScope, 'mobile_sms_send', 5);
+                $rateLimiter->consume('mobile-auth-global', 'mobile_sms_send', 60);
+                Json::ok(['challengeId' => $challenges->request($phone), 'expiresIn' => 300], 202);
+            }
+            $rateLimiter->consume($ipScope, 'mobile_sms_verify', 20);
+            $id = $body['challengeId'] ?? null;
+            $code = $body['code'] ?? null;
+            if (!is_string($id) || strlen($id) !== 36 || !is_string($code) || strlen($code) > 16) {
+                Json::error('mobile_sms_code_invalid', 'Invalid or expired code', 422);
+            }
+            $linkCode = $body['linkCode'] ?? null;
+            if ($linkCode !== null && (!is_string($linkCode) || !preg_match('/^[a-f0-9]{24}$/D', $linkCode))) {
+                Json::error('mobile_link_invalid', 'Invalid connection code', 422);
+            }
+            $auth = new MobileSmsAuthService($pdo, $challenges, $sessions, $secret);
+            $result = $auth->verify($phone, $id, $code, null, (string)($_SERVER['HTTP_USER_AGENT'] ?? ''), $linkCode);
+            if (!$result) Json::error('mobile_sms_code_invalid', 'Invalid or expired code', 422);
+            $sessions->revoke((string)($_COOKIE[$cookieName] ?? ''));
+            $setCookie($result->sessionToken, $result->absoluteExpiresAt);
+            Json::ok(['userId' => $result->context->userId, 'businessId' => $result->context->businessId]);
+        } catch (\InvalidArgumentException) {
+            Json::error('mobile_sms_number_invalid', 'Invalid mobile number', 422);
+        } catch (\DomainException $error) {
+            if ($error->getMessage() === 'mobile_link_invalid') Json::error('mobile_link_invalid', 'Invalid or expired connection code', 422);
+            if ($error->getMessage() === 'mobile_link_conflict') Json::error('mobile_link_conflict', 'The accounts are already associated separately', 409);
+            Json::error('mobile_sms_rate_limited', 'Too many code requests', 429);
+        } catch (\RuntimeException $error) {
+            if ($error->getMessage() !== 'mobile_sms_delivery_failed') throw $error;
+            Json::error('mobile_sms_delivery_failed', 'SMS delivery unavailable', 503);
+        }
+    }
+
     if ($method === 'POST' && $path === '/api/v1/auth/telegram') {
         $rateLimiter->consume('auth-ip:' . (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown'), 'auth', $config->authRateLimitPerMinute);
         $body = Json::body();
@@ -265,6 +345,22 @@ try {
     if ($method === 'PUT' && preg_match('#^/api/v1/customers/([0-9a-f-]{36})$#', $path, $match)) {
         $context = $sessionContext();
         Json::ok($customers->save($context->businessId, Json::body(), $match[1]));
+    }
+
+    if ($method === 'POST' && $path === '/api/v1/mobile/documents/sync') {
+        $context = $sessionContext();
+        header('Cache-Control: no-store');
+        $body = Json::body(3 * 1024 * 1024);
+        if (($body['businessId'] ?? null) !== $context->businessId) {
+            Json::error('mobile_sync_account_conflict', 'The sync account does not match the session', 409);
+        }
+        if (!is_array($body['document'] ?? null)) Json::error('mobile_document_invalid', 'Document required', 422);
+        try {
+            $id = (new MobileDocumentSync($pdo))->push($context->businessId, $body['document']);
+        } catch (SalesValidationException $error) {
+            Json::error($error->reason, 'Mobile document rejected', $error->httpStatus);
+        }
+        Json::ok(['documentId' => $id]);
     }
 
     if ($method === 'POST' && $path === '/api/v1/documents') {
